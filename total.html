@@ -10,7 +10,7 @@
   html, body { margin:0; height:100%; background:#0b1008; overflow:hidden; }
   body { font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; color:#e8e0d0; user-select:none; }
   .stage { position:relative; width:100vw; height:100vh; max-width:1200px; margin:0 auto; }
-  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:crosshair;
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:default;
     image-rendering:pixelated; image-rendering:crisp-edges; }
   .home { position:absolute; top:10px; left:12px; z-index:7; text-decoration:none; font-size:12px; color:#2c2012;
     background:linear-gradient(#f0e0b6,#cdae78); border:2px solid #2c2012; border-radius:4px; padding:5px 12px; box-shadow:2px 2px 0 rgba(20,14,6,.55); }
@@ -803,6 +803,53 @@ function updateTodHud(){ const b=$('todBox'); if(!b)return; const n=world.night;
 function updateCampBtn(){ const b=$('campBtn'); if(!b)return; const a=selected!=null?RTS.armyOf(world,selected):null; b.textContent=(a&&a.camp)?'🏕 숙영중':'🏕 숙영'; b.style.opacity=a?'1':'.5'; }
 function updateEnergyHud(){ const b=$('enTxt'); if(!b||!window.Meta)return; const e=Meta.energy(); b.textContent=e.v+'/'+e.max; $('enBox').style.color=e.v>0?'#e8c060':'#e07a6a'; }
 
+// ── 마우스 호버/커서/이동 경로 미리보기 ────────────────────
+let mouse={x:-999,y:-999,wx:0,wy:0,over:null,ref:null};
+function pickAt(wx,wy){
+  for(const a of world.armies){ if(a.team!=='player'||a._merged)continue; const g=a.members.find(m=>m.gen&&m.alive&&!m.gone);
+    if(g && (g.x-wx)**2+(g.y-wy)**2<34*34) return {type:'gen',ref:a}; }
+  for(const c of world.castles){ if(Math.abs(wx-c.x)<=CENC.w/2 && Math.abs(wy-c.y)<=CENC.h/2){
+    if(c.owner!=='player' && !c.everSeen) continue; return {type:c.owner==='player'?'ownCastle':'enemyCastle',ref:c}; } }
+  return {type:'map',ref:null};
+}
+function updateHover(x,y){
+  mouse.x=x; mouse.y=y; mouse.wx=x+cam.x; mouse.wy=y+cam.y;
+  const h=pickAt(mouse.wx,mouse.wy); mouse.over=h.type; mouse.ref=h.ref;
+  const sel=selected!=null?RTS.armyOf(world,selected):null;
+  let cur='default';
+  if(h.type==='gen') cur='pointer';
+  else if(h.type==='ownCastle') cur='pointer';
+  else if(h.type==='enemyCastle') cur= sel?'crosshair':'help';
+  else if(h.type==='map') cur= sel?'crosshair':'default';
+  cv.style.cursor=cur;
+}
+function drawHover(){
+  if(state!=='play'||duelOpen||sortieOpen) return;
+  const sel=selected!=null?RTS.armyOf(world,selected):null;
+  // 선택 부대 이동 미리보기: 부대 중심 → 마우스까지 점선 + 목적지 고스트
+  if(sel && mouse.over && mouse.x>=0){
+    const cen=armyCentroid(sel);
+    if(cen){ const onC=(mouse.over==='enemyCastle'||mouse.over==='ownCastle'), tx=onC?mouse.ref.x:mouse.wx, ty=onC?mouse.ref.y:mouse.wy;
+      const atk=(mouse.over==='enemyCastle'), col=atk?'rgba(232,110,90,':(mouse.over==='ownCastle'?'rgba(150,205,255,':'rgba(150,220,150,');
+      const sx=cen.x-cam.x, sy=cen.y-cam.y, dx=tx-cam.x, dy=ty-cam.y;
+      ctx.save(); ctx.strokeStyle=col+'.75)'; ctx.setLineDash([6,4]); ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(dx,dy); ctx.stroke(); ctx.setLineDash([]);
+      if(atk){ ctx.font='bold 20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillText('⚔',dx+1,dy-9); ctx.fillStyle=col+'1)'; ctx.fillText('⚔',dx,dy-10); }
+      else { ctx.fillStyle=col+'.35)'; ctx.beginPath(); ctx.arc(dx,dy,7,0,7); ctx.fill();
+        ctx.strokeStyle=col+'1)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(dx,dy,7,0,7); ctx.stroke();
+        ctx.fillStyle=col+'1)'; ctx.fillRect(dx-1,dy-16,2,10); ctx.beginPath(); ctx.moveTo(dx+1,dy-16); ctx.lineTo(dx+9,dy-13); ctx.lineTo(dx+1,dy-10); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+  // 호버 하이라이트(커서 아래 대상 강조)
+  if(mouse.over==='gen' && mouse.ref!==sel){ const g=mouse.ref.members.find(m=>m.gen&&m.alive&&!m.gone);
+    if(g){ ctx.strokeStyle='rgba(232,200,115,.9)'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(g.x-cam.x,g.y-cam.y+16,22,10,0,0,7); ctx.stroke(); } }
+  else if(mouse.over==='ownCastle'||mouse.over==='enemyCastle'){ const c=mouse.ref;
+    ctx.strokeStyle=mouse.over==='ownCastle'?'rgba(150,205,255,.65)':'rgba(255,140,110,.65)'; ctx.lineWidth=2; ctx.setLineDash([7,4]);
+    ctx.strokeRect((c.x-cam.x-CENC.w/2)|0,(c.y-cam.y-CENC.h/2)|0,CENC.w,CENC.h); ctx.setLineDash([]); }
+}
+
 function render(){
   computeVision();
   checkCastleEvents();
@@ -823,6 +870,7 @@ function render(){
   for(const s of world.soldiers) if(s.alive&&!s.gone) drawSoldier(s);
   // 선택 링(장수 아래)
   if(selected){ const a=RTS.armyOf(world,selected); const g=a&&a.members.find(m=>m.gen&&m.alive); if(g){ ctx.strokeStyle='#e8c873'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(g.x-cam.x,g.y-cam.y+16,20,9,0,0,7); ctx.stroke(); } }
+  drawHover();   // 커서 호버 하이라이트 + 이동 경로 미리보기
   // 화살 (적 화살은 시야 내만)
   for(const p of world.projectiles){ if(p.team==='enemy'&&!visAt(p.x,p.y))continue; ctx.fillStyle=p.team==='player'?'#2a3f5a':'#4a2222'; ctx.fillRect((p.x-cam.x-p.dx*8)|0,(p.y-cam.y-p.dy*8)|0,2,2); ctx.fillStyle='#efe0b4'; ctx.fillRect((p.x-cam.x)|0,(p.y-cam.y)|0,2,2); }
   // 타격
@@ -1107,8 +1155,8 @@ window.addEventListener('keydown',(e)=>{ keys[e.key]=true;
   if((e.key==='c'||e.key==='C')&&selected!=null){ const a=RTS.armyOf(world,selected); if(a&&!a._merged){ RTS.setCamp(world,selected,!a.camp); updateCampBtn(); } }
 });
 window.addEventListener('keyup',(e)=>{ keys[e.key]=false; });
-cv.addEventListener('mousemove',(e)=>{ const {x,y}=evPos(e), M=40; edge.x=x<M?-1:x>VW-M?1:0; edge.y=y<M?-1:y>VH-M?1:0; });
-cv.addEventListener('mouseleave',()=>{ edge.x=edge.y=0; });
+cv.addEventListener('mousemove',(e)=>{ const {x,y}=evPos(e), M=40; edge.x=x<M?-1:x>VW-M?1:0; edge.y=y<M?-1:y>VH-M?1:0; updateHover(x,y); });
+cv.addEventListener('mouseleave',()=>{ edge.x=edge.y=0; mouse.over=null; mouse.x=-999; cv.style.cursor='default'; });
 $('speedBtn').onclick=()=>{ speed=speed===1?2:speed===2?4:1; $('speedBtn').textContent=`▶ 속도 ${speed}x`; };
 $('pauseBtn').onclick=()=>{ paused=!paused; $('pauseBtn').textContent=paused?'▶':'⏸'; };
 $('muteBtn').onclick=()=>{ AU.resume(); $('muteBtn').textContent=AU.toggle()?'🔊':'🔇'; };
