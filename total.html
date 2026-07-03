@@ -161,6 +161,22 @@
   .dbtn.dis { opacity:.4; cursor:default; filter:grayscale(.6); } .dbtn b { display:block; font-size:14px; } .dbtn small { font-size:9px; color:#6b5436; }
   .dresult { display:none; text-align:center; margin-top:10px; } .dresult .drwin { font-family:"Batang",serif; font-size:26px; font-weight:bold; }
   .dresult .drsub { font-size:12px; color:#c9bd98; margin:4px 0 10px; }
+  /* 우측 방침(命令) 버튼 패널 — 삼국지식 */
+  .stancebar { position:absolute; right:12px; top:120px; z-index:7; display:none; flex-direction:column; gap:6px; }
+  .stancebar.show { display:flex; }
+  .stancebar .sh { font-size:11px; color:#e8c873; text-align:center; letter-spacing:3px; margin-bottom:2px; text-shadow:1px 1px 0 rgba(0,0,0,.7); }
+  .sbtn2 { width:104px; display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer;
+    background:linear-gradient(#2c1e12,#170f08); border:2px solid #6a4a20; border-radius:6px; color:#e8d7af;
+    box-shadow:2px 2px 0 rgba(0,0,0,.5); font-size:14px; font-family:"Batang",serif; transition:border-color .1s; }
+  .sbtn2:hover { border-color:var(--gold-lt); background:linear-gradient(#3a291a,#20140b); }
+  .sbtn2.on { background:linear-gradient(#7c2e2e,#521c1c); border-color:var(--gold-lt); color:#ffe8c0; font-weight:bold; }
+  .sbtn2 .ic { font-size:17px; width:18px; text-align:center; }
+  /* 전투 정보 패널(좌상단) */
+  .binfo { position:absolute; left:12px; top:52px; z-index:6; width:180px; background:rgba(14,20,12,.82); border:2px solid #2c2012; border-radius:6px;
+    box-shadow:2px 2px 0 rgba(0,0,0,.5); padding:8px 11px; font-size:12px; }
+  .binfo .bt { font-size:12px; color:#e8c873; letter-spacing:2px; border-bottom:1px solid #3a4030; padding-bottom:3px; margin-bottom:5px; }
+  .binfo .br { display:flex; justify-content:space-between; margin:3px 0; } .binfo .br .p { color:#8fb0e0; } .binfo .br .e { color:#e09090; }
+  .binfo .br b { font-family:"Courier New",monospace; }
 </style>
 </head>
 <body>
@@ -191,10 +207,17 @@
     </div>
     <div class="stats" id="ofcStats"></div>
     <div class="foot"><span>진형 <b id="ofcForm"></b></span><span>스킬 <b id="ofcSkill"></b></span></div>
-    <div class="live" style="display:flex;align-items:center;gap:6px;margin-top:6px">방침 <select id="ofcStance" style="flex:1;font-family:inherit;font-size:12px;background:#efe0b6;border:1px solid #7a5a2e;border-radius:3px;color:#26190a;padding:2px"></select></div>
     <div class="live">병력 <b id="ofcTroops"></b>　·　사기 <b id="ofcMoraleN"></b>
       <div class="mbar"><div class="mfill" id="ofcMorale"></div></div>
       <div style="margin-top:5px">피로 <b id="ofcFatigue">0</b>　·　상태 <b id="ofcState">정상</b></div></div>
+  </div>
+  <div class="stancebar orn" id="stancebar"></div>
+  <div class="binfo orn" id="binfo">
+    <div class="bt">⚔ 전투 정보</div>
+    <div class="br"><span class="p">아군 부대</span><b id="biP">0</b></div>
+    <div class="br"><span class="e">적 부대(시야)</span><b id="biE">0</b></div>
+    <div class="br"><span class="p">아군 병력</span><b id="biPT">0</b></div>
+    <div class="br"><span>평균 사기</span><b id="biM">–</b></div>
   </div>
   <div class="ctrls">
     <button class="btn" id="campBtn" style="opacity:.5">🏕 숙영</button>
@@ -850,6 +873,32 @@ function drawHover(){
     ctx.strokeRect((c.x-cam.x-CENC.w/2)|0,(c.y-cam.y-CENC.h/2)|0,CENC.w,CENC.h); ctx.setLineDash([]); }
 }
 
+// ── 방침(命令) 우측 패널 + 전투 정보 ──────────────────────
+const STANCE_UI=[
+  {k:'진군',ic:'🚩',d:'목표 지점으로 진군'},{k:'정찰',ic:'👁',d:'교전 회피·기민 이동'},
+  {k:'매복',ic:'🌿',d:'숲·산에서 은폐 대기'},{k:'야습',ic:'🌙',d:'밤에 숙영한 적 기습'},
+  {k:'방어',ic:'🛡',d:'현 위치 수비'},{k:'후퇴',ic:'↩',d:'가까운 아군 성으로'},
+];
+function buildStanceBar(){ const bar=$('stancebar'); if(!bar||bar._built)return; bar._built=1;
+  bar.innerHTML='<div class="sh">방 침</div>';
+  for(const s of STANCE_UI){ const b=document.createElement('div'); b.className='sbtn2'; b.dataset.k=s.k; b.title=s.d;
+    b.innerHTML=`<span class="ic">${s.ic}</span><span>${s.k}</span>`;
+    b.onclick=()=>{ if(selected!=null){ RTS.setStance(world,selected,s.k); updateStanceBar(); render(); } };
+    bar.appendChild(b); }
+}
+function updateStanceBar(){ const bar=$('stancebar'); if(!bar)return;
+  const a=selected!=null?RTS.armyOf(world,selected):null;
+  if(!a||a._merged){ bar.classList.remove('show'); return; } bar.classList.add('show');
+  for(const b of bar.children){ if(b.dataset&&b.dataset.k) b.classList.toggle('on', b.dataset.k===(a.stance||'진군')); }
+}
+function updateBattleInfo(){
+  let pN=0,pT=0,mSum=0,mC=0;
+  for(const a of world.armies){ if(a.team!=='player'||a._merged)continue; const g=a.members.find(m=>m.gen&&m.alive&&!m.gone); if(!g)continue;
+    let n=0; for(const m of a.members)if(!m.gen&&m.alive&&!m.gone)n++; pN++; pT+=n*100; mSum+=a.morale; mC++; }
+  let eN=0; for(const a of world.armies){ if(a.team!=='enemy'||a._merged)continue; const g=a.members.find(m=>m.gen&&m.alive&&!m.gone); const c=g||armyCentroid(a); if(c&&visAt(c.x,c.y))eN++; }
+  $('biP').textContent=pN; $('biE').textContent=eN; $('biPT').textContent=pT.toLocaleString(); $('biM').textContent=mC?Math.round(mSum/mC):'–';
+}
+
 function render(){
   computeVision();
   checkCastleEvents();
@@ -859,11 +908,15 @@ function render(){
   ctx.drawImage(bgCv, cam.x, cam.y, VW, VH, 0, 0, VW, VH);
   // 성
   for(const c of world.castles) drawCastle(c);
-  // 선택 부대 이동 목표 깃발
-  if(selected){ const a=RTS.armyOf(world,selected); if(a){ const fx=a.order.x-cam.x, fy=a.order.y-cam.y;
-    ctx.strokeStyle='rgba(232,200,115,.8)'; ctx.setLineDash([4,3]); ctx.lineWidth=1.5;
-    const cen=armyCentroid(a); if(cen){ctx.beginPath();ctx.moveTo(cen.x-cam.x,cen.y-cam.y);ctx.lineTo(fx,fy);ctx.stroke();} ctx.setLineDash([]);
-    ctx.fillStyle='#e8c873'; ctx.fillRect(fx|0,(fy-14)|0,2,14); ctx.beginPath(); ctx.moveTo(fx+2,fy-14);ctx.lineTo(fx+11,fy-11);ctx.lineTo(fx+2,fy-8);ctx.fill(); }
+  // 부대 이동 경로선(모든 아군 부대) — 삼국지식 점선 + 목적지 깃발
+  for(const a of world.armies){ if(a.team!=='player'||a._merged||a.camp||a._hold)continue;
+    const cen=armyCentroid(a); if(!cen)continue;
+    if((a.order.x-cen.x)**2+(a.order.y-cen.y)**2 < 34*34) continue;   // 거의 도착이면 생략
+    const isSel=(a.id===selected), fx=a.order.x-cam.x, fy=a.order.y-cam.y, sx=cen.x-cam.x, sy=cen.y-cam.y;
+    ctx.strokeStyle=isSel?'rgba(232,200,115,.9)':'rgba(140,215,140,.5)'; ctx.setLineDash([6,4]); ctx.lineWidth=isSel?2:1.4;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(fx,fy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=isSel?'#e8c873':'rgba(140,215,140,.85)'; ctx.fillRect(fx|0,(fy-14)|0,2,14);
+    ctx.beginPath(); ctx.moveTo(fx+2,fy-14);ctx.lineTo(fx+11,fy-11);ctx.lineTo(fx+2,fy-8);ctx.fill();
   }
   // 그림자→병사
   ctx.fillStyle='rgba(0,0,0,.2)'; for(const s of world.soldiers) if(s.alive&&!s.gone) drawShadow(s);
@@ -906,7 +959,7 @@ function render(){
   updateRoster();
   $('pCastle').textContent=world.castles.filter(c=>c.owner==='player').length;
   $('eCastle').textContent=world.castles.filter(c=>c.owner==='enemy').length;
-  updateTodHud(); updateCampBtn();
+  updateTodHud(); updateCampBtn(); updateStanceBar(); updateBattleInfo();
 }
 // ── 미니맵 ────────────────────────────────────────────────
 const mm=$('mm'), mmx=mm.getContext('2d');
@@ -1014,7 +1067,7 @@ function fillOfficer(a){
   $('ofcMeta').innerHTML=`${g.faction} · ${g.troop} · <span class="stars">${'★'.repeat(g.rarity)}${'☆'.repeat(5-g.rarity)}</span>`;
   $('ofcStats').innerHTML=['might','command','intellect','agility'].map(k=>ofcStat(k,g[k])).join('');
   $('ofcForm').textContent=a.form; $('ofcSkill').textContent=g.skill;
-  const sel=$('ofcStance'); if(sel){ if(!sel._built){ sel._built=1; sel.innerHTML=RTS.STANCES.map(s=>`<option>${s}</option>`).join(''); sel.onchange=()=>{ if(selected!=null) RTS.setStance(world,selected,sel.value); }; } sel.value=a.stance||'진군'; }
+  updateStanceBar();
   updateOfficerLive(a); $('ofc').classList.add('show');
 }
 function updateOfficerLive(a){
@@ -1290,7 +1343,7 @@ $('loadBtn').onclick=loadGame;
 $('helpBtn').onclick=()=>$('tutOv').classList.add('show');
 $('tutClose').onclick=()=>{ $('tutOv').classList.remove('show'); try{localStorage.setItem('dj_total_tut','1');}catch(e){} };
 
-function init(){ resize(); newWorld(); buildRoster(); render(); updateEnergyHud(); setInterval(updateEnergyHud,1000);
+function init(){ resize(); newWorld(); buildRoster(); buildStanceBar(); render(); updateEnergyHud(); setInterval(updateEnergyHud,1000);
   try{ if(!localStorage.getItem('dj_total_tut')) $('tutOv').classList.add('show'); }catch(e){}
   last=performance.now(); requestAnimationFrame(loop); }
 window.addEventListener('resize',()=>{ resize(); render(); });
