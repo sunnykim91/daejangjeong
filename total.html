@@ -208,6 +208,7 @@
         <div class="sPortrait"><img id="eqPor" alt=""></div>
         <div class="sOfcName" id="eqOfc"></div>
         <div class="sStats" id="eqStats"></div>
+        <div class="sSkill" id="eqSets"></div>
       </div>
       <div class="sright" id="eqSlots"></div>
     </div>
@@ -484,7 +485,7 @@ function newWorld(){
     {id:'e2',name:'국내성',x:MAPW-340,y:MAPH*0.25,owner:'enemy',troops:3000,troopMax:5000,min:72,garrison:[E[1]]},
     {id:'e3',name:'졸본',x:MAPW-340,y:MAPH*0.75,owner:'enemy',troops:3000,troopMax:5000,min:72,garrison:[E[3]]},
   ];
-  world=RTS.createWorld({W:MAPW,H:MAPH,castles,terrain:terrain()});
+  world=RTS.createWorld({W:MAPW,H:MAPH,castles,terrain:terrain(),dayLen:120,startClock:42});   // 밤이 ~30초 내 오도록(피드백 반영)
   explored.fill(0); vis.fill(0);
   for(const c of world.castles){ c.everSeen = c.owner==='player'; c.seenOwner = c.owner==='player'?c.owner:null; }
   renderMapBg();
@@ -1002,16 +1003,19 @@ function updateSortieUI(){
 }
 function closeSortie(){ sortieOpen=false; $('sortieOv').classList.remove('show'); }
 // ── 장비(무기/갑옷/장갑/신발) ─────────────────────────────
-const SLOT_KO={weapon:'무기',armor:'갑옷',gloves:'장갑',boots:'신발'};
+const SLOT_KO={weapon:'무기',armor:'갑옷',shield:'방패',gloves:'장갑',helmet:'투구',boots:'신발'};
 let equipGen=null;
 function openEquip(g){ if(!g)return; equipGen=g; renderEquip(); $('equipOv').classList.add('show'); }
 function renderEquip(){ const g=equipGen; if(!g)return;
   $('eqName').textContent=g.name+' 장비'; $('eqPor').src=makeBust('p',g.troop,g); $('eqOfc').textContent=g.name;
   $('eqStats').innerHTML=['might','command','intellect','agility'].map(k=>`<div class="st"><span class="l">${STAT_LABEL[k]}</span><span class="b"><span class="f" style="width:${Math.min(100,g[k])}%;background:${STAT_COLOR[k]}"></span></span><span class="n">${g[k]}</span></div>`).join('');
+  const sets=(g._sets||[]).map(s=>`<b style="color:${s.tier>=4?'#7c2e2e':'#3a2a12'}" title="${s.desc}">${s.name}(${s.n}${s.tier>=4?'★':''})</b>`).join(' · ');
+  $('eqSets').innerHTML = sets ? ('세트 · '+sets) : '<span style="color:#8a6a3a">세트 효과 없음</span>';
   const box=$('eqSlots'); box.innerHTML='';
   for(const slot of SLOTS){ const el=document.createElement('div'); el.className='eqslot';
     let opts=''; for(const it of ITEMS[slot]){ const on=g.equip[slot]===it.id; const b=['might','command','intellect','agility'].filter(k=>it[k]).map(k=>STAT_LABEL[k][0]+'+'+it[k]).join(' ');
-      opts+=`<span class="opt${on?' on':''}" data-slot="${slot}" data-id="${it.id}">${it.name}<span style="color:#6a4e24"> ${b}</span></span>`; }
+      const st=it.set?`<span style="color:#7c2e2e"> [${it.set}]</span>`:'';
+      opts+=`<span class="opt${on?' on':''}" data-slot="${slot}" data-id="${it.id}">${it.name}<span style="color:#6a4e24"> ${b}</span>${st}</span>`; }
     el.innerHTML=`<div class="sl">${SLOT_KO[slot]}</div><div class="opts">${opts}</div>`;
     box.appendChild(el);
   }

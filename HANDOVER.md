@@ -124,7 +124,7 @@ howon/
 - 적 침공(`enemyTurn`)은 **헤드리스 warsim** 자동 판정. 밸런스 상수: `GRADE_DROP 대승55/승38/신승23`, 방어사기 `20+민심*0.6`, 함락 리셋 68 (CAMPAIGN.md).
 
 ### 4-4. 장비 시스템 & 장수 고유 조형(장비 반영)
-- **장비**(`src/data.js`): 슬롯 `SLOTS=[weapon,armor,gloves,boots]`, `ITEMS` 테이블(각 아이템 스탯보너스+`look` 외형파라미터: wp무기형/wc색·ac갑옷색·gc장갑·bc신발). 장수마다 `equip` 로드아웃. `applyEquip(g)`가 기본스탯(`_base`)에 장착 보너스를 합쳐 `g.might` 등에 반영(로드 시 전원 적용) → rts/warsim이 장착 스탯을 그대로 사용. `itemById`/`applyEquip`/`ITEMS`/`SLOTS`는 window 노출.
+- **장비 6슬롯 + 세트효과**(`src/data.js`, Phase2a 2026-07-03): 슬롯 `SLOTS=[weapon,armor,shield,gloves,helmet,boots]`(방패·투구 추가), `ITEMS` 테이블(각 아이템 스탯보너스+`look`+`set` 태그). **세트 5종**(`SETS`): 기병(기동)·맹장(무력·일기토)·책사(계략·야습)·수비(방어·사기)·군주(민심·통솔). `applyEquip(g)`가 `_base`에 장착 보너스 + **세트 보너스**(2개↑ `s2`, 4개↑ `s4`)를 합쳐 `g.might` 등에 반영하고, 세트 특수효과를 `g._setFx`(march/duel/raid/hold/morale)·활성 세트를 `g._sets`에 기록. **rts 연동**: 책사4 → `raidChance` 야습성공+0.15, 맹장4 → `duelPower` 일기토+18%, 기병4 → `army._marchMul` 행군속도+14%. 검증 `test/equip_sim.js`(8/8). window 노출: `ITEMS`/`SLOTS`/`SETS`/`itemById`/`applyEquip`. UI: 편성팝업 장비 버튼 → 6슬롯 선택 + 세트 활성 표시(total.html `renderEquip`).
 - **장비 UI**(total.html): 편성 팝업 `장비` 버튼 → `openEquip(def)` 팝업(`#equipOv`). 슬롯별 아이템 선택 → `equipItem`(applyEquip+재렌더+buildRoster). 스프라이트/초상 캐시는 equip 시그니처를 키에 포함 → 교체 시 자동 재생성.
 - **장수 고유 조형/일러스트**: `genLook(def)`=장비 look + id 시드(볏색 PLUMES/수염). `makeGenSprite(team,def)`=투구+볏+수염+갑주(장비색)+무기(장비형: 창/도/궁/언월도/방천화극)로 8장수 각기 다른 맵 조형. `makeBust(side,troop,def)`=초상에 갑옷색·볏·수염 반영(`bustKey`로 캐시). `spriteFor`/drawGarrison/일기토/officer/roster/sortie 전부 def 전달.
 - **일기토 애니**(`drawDuelFighter(team,def,...,swing)`): 장수 고유 조형 + 합마다 앞으로 기울여 베는 스윙(회전+전진)+무기 궤적 호. 武(장착 무력) HUD 표기.

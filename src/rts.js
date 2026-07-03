@@ -126,7 +126,7 @@
     });
     return { id, team, gen: g, form, order: { x: cx, y: cy }, morale: 75, _engaged: false,
       fatigue: 0, camp: false, aware: true, confused: false, confuseT: 0, collapsed: false,
-      _atkMul: 1, _spdMul: 1, _raidCd: 0, members };
+      _atkMul: 1, _spdMul: 1, _raidCd: 0, _marchMul: 1 + ((g._setFx && g._setFx.march) || 0), members };   // 기병 세트: 행군 속도↑
   }
 
   function createWorld(opts) {
@@ -195,7 +195,8 @@
   // 일기토 무력 판정: 무력 중심 + 통솔/지력 + 현재 체력비 + 운.
   function duelPower(world, g, rng) {
     const rec = genRecOf(world, g.army), d = rec ? rec.def : {};
-    return (d.might || 60) * 1.0 + (d.command || 60) * 0.3 + (d.intellect || 60) * 0.15 + (g.hp / g.maxHp) * 22 + rng() * 45;
+    const base = (d.might || 60) * 1.0 + (d.command || 60) * 0.3 + (d.intellect || 60) * 0.15 + (g.hp / g.maxHp) * 22 + rng() * 45;
+    return base * (1 + ((d._setFx && d._setFx.duel) || 0));                 // 맹장 세트: 일기토 위력↑
   }
   function startDuel(world, a, b) {
     const d = { id: world._did++, a, b, t: 0, dur: 2.6, clash: 0.4, ended: false, endT: 0, hitAt: null, hitSide: null, clashN: 0,
@@ -311,6 +312,7 @@
     if (!def.aware) p += 0.22;                                              // 방심(야간 숙영) 보너스
     const tt = typeAt(world, def.order.x, def.order.y);                     // 매복 지형(숲·산)
     if (tt === '숲' || tt === '산악') p += 0.12;
+    if (A._setFx) p += A._setFx.raid || 0;                                  // 책사 세트: 야습 성공↑
     return Math.max(0.05, Math.min(0.95, p));
   }
 
@@ -380,7 +382,7 @@
       if (!s.alive || s.gone) continue;
       if (s.duel) continue;                    // 일기토 중인 장수는 정상 행동 정지(결투에 몰입)
       const army = armyOf(world, s.army);
-      const spdMul = army ? (army._spdMul || 1) : 1;   // 혼란 등 상태 이동 배수
+      const spdMul = army ? (army._spdMul || 1) * (army._marchMul || 1) : 1;   // 혼란·기병세트 등 이동 배수
       const routing = army && (army.rout || army._r);
       s.flee = routing;
 
