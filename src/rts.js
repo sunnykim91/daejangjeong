@@ -4,6 +4,7 @@
 (function () {
   const Engine = (typeof require !== 'undefined') ? require('./engine.js') : window.Engine;
   const WarSim = (typeof require !== 'undefined') ? require('./warsim.js') : window.WarSim;
+  const Duel = (typeof require !== 'undefined') ? require('./duel.js') : window.Duel;
   const typeMult = Engine.typeMult;
   const { soldierStats, formationOffsets, formedRatio, skillPow, FORM_STATS, FORM_BEATS } = WarSim;
 
@@ -248,11 +249,9 @@
     const req = world.duelRequest; if (!req) return;
     const ra = genRecOf(world, req.a.army), rb = genRecOf(world, req.b.army);
     if (!ra || !rb) { world.duelRequest = null; return; }
-    const battle = Engine.createBattle({ player: [ra.def], enemy: [rb.def] }, { seed: ((world.time * 1000) | 0) ^ 0x9e37 });
-    const r = Engine.runBattle(battle);
-    const aWon = r.winner === 'player', winner = aWon ? req.a : req.b, loser = aWon ? req.b : req.a;
-    const loserF = aWon ? battle.teams.enemy[0] : battle.teams.player[0];
-    applyDuelResult(world, winner, loser, !loserF.alive);
+    const d = Duel.auto(ra.def, rb.def, rng || Math.random);   // 스킬킷 일기토 즉시 판정
+    const aWon = d.winner === 'p', winner = aWon ? req.a : req.b, loser = aWon ? req.b : req.a;
+    applyDuelResult(world, winner, loser, d.result.killed);
   }
   // 턴제 일기토 결과를 전쟁에 반영(RQ-V4-006): 승리 사기↑ / 패배 전사→부대 와해 or 생존→사기급락·혼란(후퇴).
   function applyDuelResult(world, winner, loser, loserKilled) {

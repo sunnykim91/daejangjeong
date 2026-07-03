@@ -50,7 +50,7 @@ chromium-browser --headless=new --no-sandbox --disable-gpu --window-size=1200,80
 | `gacha.html` | **등용(가챠)** | 등용서로 42장 장수풀 뽑기 + 진영별 수집/시너지 + 에너지. Track A 상업층 목업 | ✅ Phase2b |
 | `index_cards.html` | (백업) | 최초 카드형 UI | deprecated |
 
-> **일기토 = 턴제(Phase3 2026-07-03 복원)**. 요구사항 v4(RQ-V4-001/002)대로 **`engine.js`(GAMERULE 턴제 엔진)** 로 되돌림. 전쟁 중 두 장수 근접 시 `world.duelRequest` 설정 → total.html 턴제 모달(`openDuel`) 발동, 전쟁 정지. 플레이어 5행동(공격/방어/스킬/책략/사기고양) 선택, 적은 `Engine.aiChooseAction`. 종료 시 `RTS.applyDuelResult`(승리 사기↑ / 패배 전사→와해 or 생존→사기급락·혼란)로 전쟁 반영(RQ-V4-006). 헤드리스는 `world.autoDuel=true` → `resolveDuelAuto`(engine 즉시 판정). 검증 `test/duel_sim.js`. ⚠️ 옛 실시간 컷씬(`world.duels`/`procDuels`/`drawDuelCutscene`)은 미사용(코드만 잔존). `index_cards.html`은 최초 카드 UI 백업(deprecated).
+> **일기토 = 턴제 + RAID(그림자의 전설)식 스킬킷** (Phase3 복원 → 2차답변으로 스킬킷 확장, 2026-07-03). `src/duel.js`: 장수마다 **액티브 스킬 1~4개 + 고유 특성(패시브)** 을 스탯·병종·등급으로 자동 구성(`buildKit`; 명장 오버라이드 가능). 스킬(강타/연격/저격/관통/분쇄/분기/함성/방어/화계/교란/정비) + 특성(돌격/정밀/맹공/견고/지장/질풍). 쿨다운·버프·화상DoT·회피·치명. 일기토 체력 `×DUEL_HP_MUL(2.4)`로 4~6R 지속. 전쟁 중 근접 시 `world.duelRequest` → total.html 스킬킷 모달(`openDuel`: `Duel.beginTurn`/`useSkill`/`aiPick`, 킷 버튼 선택). 종료 시 `RTS.applyDuelResult`(승리 사기↑ / 패배 전사→와해 or 생존→사기급락·혼란)로 전쟁 반영(RQ-V4-006). 헤드리스는 `world.autoDuel=true`→`resolveDuelAuto`→`Duel.auto`. 검증 `test/duel2_sim.js`. ⚠️ 옛 engine.js 4:4 판정은 유틸(typeMult/maxHpOf)로만, 실시간 컷씬 코드는 미사용. `index_cards.html`은 최초 카드 UI 백업(deprecated).
 
 ---
 

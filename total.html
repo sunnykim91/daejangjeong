@@ -267,6 +267,7 @@
 </div>
 
 <script src="src/engine.js"></script>
+<script src="src/duel.js"></script>
 <script src="src/data.js"></script>
 <script src="src/warsim.js"></script>
 <script src="src/rts.js"></script>
@@ -1123,81 +1124,61 @@ $('soGo').onclick=()=>{
     const g=army.members.find(m=>m.gen); if(g){ cam.x=Math.max(0,Math.min(MAPW-VW,g.x-VW/2)); cam.y=Math.max(0,Math.min(MAPH-VH,g.y-VH/2)); } render(); }
   else if(window.Meta){ Meta.addEnergy(1); updateEnergyHud(); } };
 
-// ── 턴제 일기토 (engine.js 구동, 전쟁 중 발동) ────────────
-let duelOpen=false, dBattle=null, dOrder=[], dIdx=0, dReq=null;
+// ── 스킬킷 일기토 (RAID식, duel.js 구동, 전쟁 중 발동) ────
+let duelOpen=false, dDuel=null, dReq=null;
 function openDuel(req){
   dReq=req; duelOpen=true;
   const pSol=req.a.team==='player'?req.a:req.b, eSol=req.a.team==='player'?req.b:req.a;
   req._pSol=pSol; req._eSol=eSol;
-  const pDef=genById(pSol.id), eDef=genById(eSol.id);
-  dBattle=Engine.createBattle({player:[pDef],enemy:[eDef]},{seed:((performance.now()*1000)|0)^((pSol.x*13+eSol.y*7)|0),maxRounds:30});
-  dBattle.strategy.enemy=Engine.aiChooseAction;
-  dBattle.round=1; dOrder=Engine.computeOrder(dBattle); dIdx=0;
+  dDuel=Duel.createDuel(genById(pSol.id),genById(eSol.id),{});
   $('duelResult').style.display='none'; $('duelOv').classList.add('show'); AU.duel();
-  renderDuel(); duelAdvance();
+  renderDuel(); duelTurn();
 }
-function duelHead(side,f,morale,rout){
-  const el=$(side==='p'?'dfP':'dfE'), def=genById(f.id), hpP=Math.max(0,f.hp/f.maxHp*100);
-  const st=f.statuses.map(s=>s.type).join(' ');
-  el.innerHTML=`<div class="dpor ${side==='p'?'pp':'ee'}"><img src="${makeBust(side,f.troop,def)}"></div>
-    <div class="dnm" style="color:${side==='p'?'#bcd8ff':'#ffc4c4'}">${f.name}</div>
-    <div class="dmeta">${f.faction||''} · ${f.troop} · 武${f.might}</div>
+function heroHead(side,h){
+  const el=$(side==='p'?'dfP':'dfE'), def=genById(h.def.id), hpP=Math.max(0,h.hp/h.maxHp*100);
+  const buffs=h.buffs.map(b=>b.type==='atk'?'⚔↑':b.type==='guard'?'🛡':b.type==='dot'?'🔥':b.type==='weak'?'▼':'').join(' ');
+  const pas=Duel.PASSIVES[h.passive];
+  el.innerHTML=`<div class="dpor ${side==='p'?'pp':'ee'}"><img src="${makeBust(side,h.troop,def)}"></div>
+    <div class="dnm" style="color:${side==='p'?'#bcd8ff':'#ffc4c4'}">${h.name}</div>
+    <div class="dmeta">${h.faction||''} · ${h.troop} · 특성 <b style="color:#c79a3a">${pas?pas.name:'-'}</b></div>
     <div class="dbar"><div class="dhp" style="width:${hpP}%;background:${side==='p'?'#5a94e0':'#df6060'}"></div></div>
-    <div class="dnum">${Math.max(0,f.hp)|0} / ${f.maxHp}</div>
-    <div class="dmor">사기 ${Math.round(morale)}${rout?' <b style="color:#e05050">붕괴</b>':''}</div>${st?`<div class="dstat">${st}</div>`:''}`;
+    <div class="dnum">${Math.max(0,h.hp)|0} / ${h.maxHp}</div>
+    <div class="dmor">기세 ${Math.round(dDuel.morale[side])} ${buffs}</div>`;
 }
 function renderDuel(){
-  duelHead('p',dBattle.teams.player[0],dBattle.morale.player,dBattle.rout.player);
-  duelHead('e',dBattle.teams.enemy[0],dBattle.morale.enemy,dBattle.rout.enemy);
-  const box=$('duelLog'), L=dBattle.log.slice(-7);
-  box.innerHTML=L.map(e=>`<div class="lg ${e.kind}">${e.msg}</div>`).join(''); box.scrollTop=box.scrollHeight;
+  heroHead('p',dDuel.p); heroHead('e',dDuel.e);
+  const box=$('duelLog'), L=dDuel.log.slice(-7);
+  box.innerHTML=L.map(m=>`<div class="lg">${m}</div>`).join(''); box.scrollTop=box.scrollHeight;
 }
-function showDuelActions(actor){
-  const box=$('duelActs'); box.style.display='flex';
-  const acts=[{t:'공격',on:1,d:'무력 타격'},{t:'방어',on:1,d:'피해½·사기+3'},
-    {t:'스킬',on:actor.cd.skill===0&&actor.skill,d:actor.skill||'없음'},
-    {t:'책략',on:actor.cd.stratagem===0&&actor.stratagem,d:actor.stratagem||'없음'},
-    {t:'사기고양',on:actor.cd.rally===0,d:'사기+20'}];
-  box.innerHTML='';
-  for(const a of acts){ const b=document.createElement('button'); b.className='dbtn'+(a.on?'':' dis');
-    b.innerHTML=`<b>${a.t}</b><small>${a.d}</small>`; if(a.on)b.onclick=()=>playerAct(a.t); box.appendChild(b); }
-}
-function hideDuelActions(){ $('duelActs').style.display='none'; }
-function playerAct(type){
-  const actor=dOrder[dIdx]; if(!actor||actor.team!=='player'||!actor.alive)return;
-  const foe=Engine.aliveOf(dBattle,'enemy')[0];
-  dBattle.strategy.player=()=>({type,target:foe});
-  hideDuelActions(); Engine.takeTurn(dBattle,actor); dIdx++; renderDuel();
-  const v=Engine.checkVictory(dBattle); if(v)return duelFinish(v);
-  setTimeout(duelAdvance,450);
-}
-function duelAdvance(){
-  while(dIdx<dOrder.length){
-    const actor=dOrder[dIdx];
-    if(!actor.alive){ dIdx++; continue; }
-    if(actor.team==='enemy'){ Engine.takeTurn(dBattle,actor); dIdx++; renderDuel();
-      const v=Engine.checkVictory(dBattle); if(v)return duelFinish(v);
-      setTimeout(duelAdvance,600); return;
-    } else { renderDuel(); showDuelActions(actor); return; }
+function showKit(actor){
+  const box=$('duelActs'); box.style.display='flex'; box.innerHTML='';
+  for(const id of actor.kit){ const sk=Duel.SKILLS[id], ready=Duel.skillReady(actor,id);
+    const b=document.createElement('button'); b.className='dbtn'+(ready?'':' dis');
+    b.innerHTML=`<b>${sk.name}</b><small>${ready?sk.desc:'재사용 '+actor.cds[id]+'턴'}</small>`;
+    if(ready)b.onclick=()=>playerSkill(id); box.appendChild(b);
   }
-  Engine.endRound(dBattle);
-  const v=Engine.checkVictory(dBattle); if(v)return duelFinish(v);
-  if(dBattle.round>=dBattle.maxRounds)return duelFinish(Engine.judgeTimeout(dBattle));
-  dBattle.round++; dOrder=Engine.computeOrder(dBattle); dIdx=0; renderDuel();
-  setTimeout(duelAdvance,450);
 }
-function duelFinish(result){
-  hideDuelActions(); renderDuel();
-  const pWon=result.winner==='player', pSol=dReq._pSol, eSol=dReq._eSol;
-  const winner=pWon?pSol:eSol, loser=pWon?eSol:pSol;
-  const loserF=pWon?dBattle.teams.enemy[0]:dBattle.teams.player[0], killed=!loserF.alive;
+function hideKit(){ $('duelActs').style.display='none'; }
+function playerSkill(id){ hideKit(); Duel.useSkill(dDuel,id); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,450); }
+function duelTurn(){
+  if(dDuel.finished)return duelFinish();
+  Duel.beginTurn(dDuel); renderDuel();
+  if(dDuel.finished)return duelFinish();
+  const actor=dDuel.order[dDuel.idx];
+  if(actor.side==='p') showKit(actor);
+  else setTimeout(()=>{ Duel.useSkill(dDuel,Duel.aiPick(dDuel)); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,600); },600);
+}
+function duelFinish(){
+  hideKit(); renderDuel();
+  const r=dDuel.result, pWon=r.winner==='p', pSol=dReq._pSol, eSol=dReq._eSol;
+  const winner=pWon?pSol:eSol, loser=pWon?eSol:pSol, killed=r.killed;
   const box=$('duelResult'); box.style.display='block';
   box.innerHTML=`<div class="drwin" style="color:${pWon?'#7fe89a':'#e06868'}">${pWon?'勝 · 승리':'敗 · 패배'}</div>
-    <div class="drsub">${result.grade} · ${result.rounds}합 · ${killed?(pWon?'적장 격파! 부대 와해':'아군 장수 전사'):(pWon?'적장 후퇴시킴':'아군 후퇴')}</div>
+    <div class="drsub">${r.grade} · ${dDuel.round}R · ${killed?(pWon?'적장 격파! 부대 와해':'아군 장수 전사'):(pWon?'적장 후퇴시킴':'아군 후퇴')}</div>
     <button class="btn" id="duelCloseBtn">확 인</button>`;
   $('duelCloseBtn').onclick=()=>{
     RTS.applyDuelResult(world,winner,loser,killed);
-    $('duelOv').classList.remove('show'); duelOpen=false; dBattle=null;
+    $('duelOv').classList.remove('show'); duelOpen=false; dDuel=null;
     if(pWon){AU.win(); screenFx({flash:[232,200,115],fdur:0.3,text:winner.genName+' 一騎討 勝!',sub:killed?'적장을 벤다':'적장을 물리쳤다',color:'#ffe07a',tdur:1.5});}
     else{AU.boom(); screenFx({flash:[200,60,50],fdur:0.35,shake:10,text:loser.genName+' 敗北',sub:killed?'장수를 잃었다':'후퇴한다',color:'#ff8a6a',tdur:1.5});}
     render();
