@@ -132,7 +132,7 @@
   function createWorld(opts) {
     const W = opts.W, H = opts.H;
     const world = { W, H, time: 0, winner: null, castles: [], armies: [], soldiers: [], generals: [], duels: [], flashes: [], skillFx: [], projectiles: [], terrain: opts.terrain || [], _aid: 0, _did: 0,
-      clock: opts.startClock || 0, dayLen: opts.dayLen || DAY_LEN, nightFrac: opts.nightFrac != null ? opts.nightFrac : NIGHT_FRAC, night: false, tod: 0 };
+      clock: opts.startClock || 0, dayLen: opts.dayLen || DAY_LEN, nightFrac: opts.nightFrac != null ? opts.nightFrac : NIGHT_FRAC, night: false, tod: 0, duelRequest: null, autoDuel: !!opts.autoDuel };
     for (const c of opts.castles) {
       const castle = {
         id: c.id, name: c.name, x: c.x, y: c.y, owner: c.owner, hp: 100,
@@ -233,15 +233,40 @@
   }
   // 새 일기토 감지(한 번에 하나만 — 결투 중엔 발생 안 함)
   function detectDuels(world, dt, rng) {
-    if (world.duels.some((d) => !d.ended)) return;
+    if (world.duelRequest || world.duels.some((d) => !d.ended)) return;
     const gens = [];
     for (const s of world.soldiers) { if (s.gen && s.alive && !s.gone && !s.flee) { if (s._duelCd > 0) s._duelCd -= dt; gens.push(s); } }
     for (let i = 0; i < gens.length; i++) for (let j = i + 1; j < gens.length; j++) {
       const a = gens[i], b = gens[j];
       if (a.team === b.team || a.duel || b.duel || a._duelCd > 0 || b._duelCd > 0) continue;
       if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 > DUEL_R * DUEL_R) continue;
-      if (rng() < 1.6 * dt) { startDuel(world, a, b); return; }
+      if (rng() < 1.6 * dt) { world.duelRequest = { a, b }; if (world.autoDuel) resolveDuelAuto(world, rng); return; }   // UI가 처리 / 헤드리스는 자동 판정
     }
+  }
+  // 헤드리스(테스트·AI 시뮬)용 자동 일기토 판정 — engine 턴제 1:1을 즉시 돌려 결과 반영.
+  function resolveDuelAuto(world, rng) {
+    const req = world.duelRequest; if (!req) return;
+    const ra = genRecOf(world, req.a.army), rb = genRecOf(world, req.b.army);
+    if (!ra || !rb) { world.duelRequest = null; return; }
+    const battle = Engine.createBattle({ player: [ra.def], enemy: [rb.def] }, { seed: ((world.time * 1000) | 0) ^ 0x9e37 });
+    const r = Engine.runBattle(battle);
+    const aWon = r.winner === 'player', winner = aWon ? req.a : req.b, loser = aWon ? req.b : req.a;
+    const loserF = aWon ? battle.teams.enemy[0] : battle.teams.player[0];
+    applyDuelResult(world, winner, loser, !loserF.alive);
+  }
+  // 턴제 일기토 결과를 전쟁에 반영(RQ-V4-006): 승리 사기↑ / 패배 전사→부대 와해 or 생존→사기급락·혼란(후퇴).
+  function applyDuelResult(world, winner, loser, loserKilled) {
+    const wa = armyOf(world, winner.army), la = armyOf(world, loser.army);
+    if (wa) { wa.morale = Math.min(100, wa.morale + 12); wa.aware = true; }
+    if (loserKilled) {
+      if (loser.alive) { loser.hp = 0; loser.alive = false; killMorale(world, loser, winner.team); }   // 전사/도망 + 부대 해산
+    } else if (la) {
+      la.morale = Math.max(0, la.morale - 20);                    // 패배(생존): 사기 급락 → 후퇴 유발
+      la.confused = true; la.confuseT = CONFUSE_DUR * 0.6;        // 혼란(돌파당함)
+    }
+    if (winner.alive) winner._duelCd = DUEL_CD;
+    if (loser.alive) loser._duelCd = DUEL_CD;
+    world.duelRequest = null;
   }
   // 일시중지 중 일기토만 진행(삼국지식 결투 컷씬용). 시간은 흐르되 나머지 시뮬 정지.
   function stepDuels(world, dt, rng) { if (world.winner) return; rng = rng || Math.random; dt = Math.min(dt, 0.05); world.time += dt; procDuels(world, dt, rng); }
@@ -351,7 +376,7 @@
   function setCamp(world, armyId, on) { const a = armyOf(world, armyId); if (a && !a._merged) { a.camp = !!on; if (on) a.target = null; } }
 
   function step(world, dt, rng) {
-    if (world.winner) return;
+    if (world.winner || world.duelRequest) return;   // 턴제 일기토 진행 중엔 전쟁 정지
     rng = rng || Math.random;
     dt = Math.min(dt, 0.05); world.time += dt;
     updateDayNight(world, dt);
@@ -590,7 +615,7 @@
   }
 
   const RTS = { createWorld, step, stepDuels, moveArmy, sortie, regarrison, armyOf, genRecOf, aliveCount, makeArmy, terrainAt, TERRAIN, AGGRO, CAP_R,
-    setCamp, tryRaid, raidChance, detectRaids, fatigueAtk, RAID_R, CONFUSE_DUR, DAY_LEN };
+    setCamp, tryRaid, raidChance, detectRaids, fatigueAtk, applyDuelResult, resolveDuelAuto, RAID_R, CONFUSE_DUR, DAY_LEN, DUEL_R };
   if (typeof module !== 'undefined' && module.exports) module.exports = RTS;
   if (typeof window !== 'undefined') window.RTS = RTS;
 })();

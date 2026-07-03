@@ -45,7 +45,7 @@ console.log('\n[3] 세트효과 → 야습 확률 반영(rts 연동)');
 console.log('\n[4] 회귀: 장비 반영 후 전투 정상 종료');
 {
   const w = RTS.createWorld({
-    W: 900, H: 600, dayLen: 120, startClock: 0,
+    W: 900, H: 600, dayLen: 120, startClock: 0, autoDuel: true,
     castles: [{ id: 'p', name: 'P', x: 200, y: 300, owner: 'player' }, { id: 'e', name: 'E', x: 700, y: 300, owner: 'enemy' }],
     armies: [{ gen: gen('player', 0), team: 'player', castle: 'p', dots: 16 }, { gen: gen('enemy', 0), team: 'enemy', castle: 'e', dots: 16 }],
   });

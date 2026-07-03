@@ -8,7 +8,7 @@ function ok(cond, msg) { console.log((cond ? '  ✅ ' : '  ❌ ') + msg); if (!c
 function build(o) {
   o = o || {};
   return RTS.createWorld({
-    W: 900, H: 600, dayLen: o.dayLen || 100, nightFrac: o.nightFrac != null ? o.nightFrac : 0.5, startClock: o.startClock || 0,
+    W: 900, H: 600, dayLen: o.dayLen || 100, nightFrac: o.nightFrac != null ? o.nightFrac : 0.5, startClock: o.startClock || 0, autoDuel: true,
     castles: [{ id: 'p', name: '위례', x: 200, y: 300, owner: 'player' }, { id: 'e', name: '평양', x: 700, y: 300, owner: 'enemy' }],
     armies: [{ gen: ROSTER.player[0], team: 'player', castle: 'p', dots: 16, form: '방진' },
              { gen: ROSTER.enemy[0], team: 'enemy', castle: 'e', dots: 16, form: '방진' }],

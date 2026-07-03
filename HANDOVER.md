@@ -50,7 +50,7 @@ chromium-browser --headless=new --no-sandbox --disable-gpu --window-size=1200,80
 | `gacha.html` | **등용(가챠)** | 등용서로 42장 장수풀 뽑기 + 진영별 수집/시너지 + 에너지. Track A 상업층 목업 | ✅ Phase2b |
 | `index_cards.html` | (백업) | 최초 카드형 UI | deprecated |
 
-> **옛 4:4 턴제 일기토는 제거됨**(`battle.html`·`duel.js`·`battleview.js` 삭제). → **총력전에서 실시간 무장 결투 + 시네마틱 컷씬으로 재설계 완료**(HANDOVER §4-2 일기토). `index_cards.html`은 최초 카드 UI 백업(deprecated).
+> **일기토 = 턴제(Phase3 2026-07-03 복원)**. 요구사항 v4(RQ-V4-001/002)대로 **`engine.js`(GAMERULE 턴제 엔진)** 로 되돌림. 전쟁 중 두 장수 근접 시 `world.duelRequest` 설정 → total.html 턴제 모달(`openDuel`) 발동, 전쟁 정지. 플레이어 5행동(공격/방어/스킬/책략/사기고양) 선택, 적은 `Engine.aiChooseAction`. 종료 시 `RTS.applyDuelResult`(승리 사기↑ / 패배 전사→와해 or 생존→사기급락·혼란)로 전쟁 반영(RQ-V4-006). 헤드리스는 `world.autoDuel=true` → `resolveDuelAuto`(engine 즉시 판정). 검증 `test/duel_sim.js`. ⚠️ 옛 실시간 컷씬(`world.duels`/`procDuels`/`drawDuelCutscene`)은 미사용(코드만 잔존). `index_cards.html`은 최초 카드 UI 백업(deprecated).
 
 ---
 
