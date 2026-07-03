@@ -324,8 +324,8 @@
     world.night = world.tod >= (1 - (world.nightFrac || NIGHT_FRAC));       // 후반부 = 밤
   }
 
-  // 피로도(0=팔팔 ~ 100=탈진) → 공격 배수. 숙영으로 회복하면 공격력↑(기획: 숙영 시 피로↓→공격↑).
-  function fatigueAtk(f) { return Math.max(0.72, Math.min(1.14, 1.12 - (f / 100) * 0.42)); }
+  // 피로도(0=팔팔 ~ 100=탈진) → 공격 배수. 기획: 피로 0 = 전투력 100%(보너스 아님), 과로 시 패널티.
+  function fatigueAtk(f) { return Math.max(0.7, Math.min(1.0, 1.0 - (f / 100) * 0.30)); }   // f0=1.0 / f100=0.70
 
   // 야습 성공 확률: 공격측 지력·기동(기습) vs 수비측 통솔·지력(경계). 야간·방심·지형 보정.
   function raidChance(world, atk, def) {
@@ -338,6 +338,7 @@
     const tt = typeAt(world, def.order.x, def.order.y);                     // 매복 지형(숲·산)
     if (tt === '숲' || tt === '산악') p += 0.12;
     if (A._setFx) p += A._setFx.raid || 0;                                  // 책사 세트: 야습 성공↑
+    p += ((def.fatigue || 0) / 100) * 0.15;                                 // 과로한 적일수록 야습에 취약
     return Math.max(0.05, Math.min(0.95, p));
   }
 
