@@ -13,6 +13,12 @@
   const CAP_R = 46;           // 성 점령 판정 반경
   const DUEL_R = 44;          // 적 장수 이 거리 안 → 일기토 발생 가능
   const DUEL_CD = 9;          // 일기토 재발 대기(초)
+  // ── 야습/혼란/와해 (Phase1: 소수가 대군을 이기는 핵심 장치) ──
+  const RAID_R = 130;         // 야습 발동 감지 반경(활동부대 → 숙영/방심한 적)
+  const RAID_CD = 6;          // 야습 재시도 대기(초)
+  const CONFUSE_DUR = 9;      // 혼란 지속(초). 이 안에 수습 못 하면 와해로 전환
+  const DAY_LEN = 160;        // 하루 길이(초) — Track A 가짜 시계. 서버판에선 실시간(≈30분)로 교체
+  const NIGHT_FRAC = 0.42;    // 하루 중 밤 비율(야습 보너스 시간대)
 
   // 지형 효과 테이블(컴포넌트화): spd=이동, atk=공격, taken=피해, cav=기병배수, ranged=피격 원거리피해배수(엄폐)
   const TERRAIN = {
@@ -118,12 +124,15 @@
       cd: 0, cdMax: st.cd * 0.7, spd: st.spd * 1.14, alive: true, flee: false, formed: true, off: { dx: 0, dy: -18 },
       target: null, rt: 0, skill: g.skill, intellect: g.intellect, skillCd: 4 + Math.random() * 3, skillCdMax: 8,
     });
-    return { id, team, gen: g, form, order: { x: cx, y: cy }, morale: 75, _engaged: false, members };
+    return { id, team, gen: g, form, order: { x: cx, y: cy }, morale: 75, _engaged: false,
+      fatigue: 0, camp: false, aware: true, confused: false, confuseT: 0, collapsed: false,
+      _atkMul: 1, _spdMul: 1, _raidCd: 0, members };
   }
 
   function createWorld(opts) {
     const W = opts.W, H = opts.H;
-    const world = { W, H, time: 0, winner: null, castles: [], armies: [], soldiers: [], generals: [], duels: [], flashes: [], skillFx: [], projectiles: [], terrain: opts.terrain || [], _aid: 0, _did: 0 };
+    const world = { W, H, time: 0, winner: null, castles: [], armies: [], soldiers: [], generals: [], duels: [], flashes: [], skillFx: [], projectiles: [], terrain: opts.terrain || [], _aid: 0, _did: 0,
+      clock: opts.startClock || 0, dayLen: opts.dayLen || DAY_LEN, nightFrac: opts.nightFrac != null ? opts.nightFrac : NIGHT_FRAC, night: false, tod: 0 };
     for (const c of opts.castles) {
       const castle = {
         id: c.id, name: c.name, x: c.x, y: c.y, owner: c.owner, hp: 100,
@@ -146,6 +155,7 @@
       world.generals.push({ def: a.gen, team: a.team, state: 'field', castle: null, armyId: army.id });
     }
     buildNav(world);                                  // 통과불가 지형 내비 그리드
+    updateDayNight(world, 0);                          // 초기 밤/낮 상태 확정(startClock 반영)
     return world;
   }
 
@@ -280,10 +290,69 @@
     world.skillFx.push({ name: g.skill, x: tx, y: ty, gx: g.x, gy: g.y, team: g.team, ttl: 1.1 });
   }
 
+  // ── 밤/낮 시계 (Track A: 가짜 시계. 서버판에선 서버 시간으로 대체) ──
+  function updateDayNight(world, dt) {
+    const len = world.dayLen || DAY_LEN;
+    world.clock = (world.clock || 0) + dt;
+    world.tod = (world.clock % len) / len;                                  // 0~1(하루 진행)
+    world.night = world.tod >= (1 - (world.nightFrac || NIGHT_FRAC));       // 후반부 = 밤
+  }
+
+  // 피로도(0=팔팔 ~ 100=탈진) → 공격 배수. 숙영으로 회복하면 공격력↑(기획: 숙영 시 피로↓→공격↑).
+  function fatigueAtk(f) { return Math.max(0.72, Math.min(1.14, 1.12 - (f / 100) * 0.42)); }
+
+  // 야습 성공 확률: 공격측 지력·기동(기습) vs 수비측 통솔·지력(경계). 야간·방심·지형 보정.
+  function raidChance(world, atk, def) {
+    const A = atk.gen || {}, D = def.gen || {};
+    const strike = (A.intellect || 60) * 0.6 + (A.agility || 60) * 0.4;
+    const guard = (D.command || 60) * 0.55 + (D.intellect || 60) * 0.45;
+    let p = 0.5 + (strike - guard) * 0.006;                                 // 능력차 ±
+    if (world.night) p += 0.18;                                             // 야간 보너스
+    if (!def.aware) p += 0.22;                                              // 방심(야간 숙영) 보너스
+    const tt = typeAt(world, def.order.x, def.order.y);                     // 매복 지형(숲·산)
+    if (tt === '숲' || tt === '산악') p += 0.12;
+    return Math.max(0.05, Math.min(0.95, p));
+  }
+
+  // 야습 실행: 성공 시 대상 혼란 + 사기 충격. 실패 시 대상 각성(경계). armyId로 호출(수동/자동 공용).
+  function tryRaid(world, attackerId, defenderId, rng) {
+    rng = rng || Math.random;
+    const a = armyOf(world, attackerId), d = armyOf(world, defenderId);
+    if (!a || !d || a.team === d.team || a._merged || d._merged) return false;
+    a._raidCd = RAID_CD;
+    if (rng() < raidChance(world, a, d)) {
+      d.confused = true; d.confuseT = CONFUSE_DUR; d.camp = false; d.aware = true;
+      d.morale = Math.max(0, d.morale - 26);                                // 기습 충격
+      world.flashes.push({ x: d.order.x, y: d.order.y, ttl: 0.35, raid: true });
+      return true;
+    }
+    d.camp = false; d.aware = true;                                         // 발각 → 적 각성
+    return false;
+  }
+
+  // 자동 야습 감지: 활동 중인 부대가 숙영·방심한 적에 접근하면 확률 발동(주로 밤).
+  function detectRaids(world, dt, rng) {
+    rng = rng || Math.random;
+    for (const a of world.armies) {
+      if (a._merged || a.rout || a.confused || a.camp) continue;            // 공격측은 활동/각성 상태여야
+      if (a._raidCd > 0) { a._raidCd -= dt; continue; }
+      for (const d of world.armies) {
+        if (d.team === a.team || d._merged || d.confused) continue;
+        if (!(d.camp || !d.aware)) continue;                               // 대상은 숙영/방심 상태만
+        if ((d.order.x - a.order.x) ** 2 + (d.order.y - a.order.y) ** 2 > RAID_R * RAID_R) continue;
+        if (rng() < 0.9 * dt) { tryRaid(world, a.id, d.id, rng); break; }
+      }
+    }
+  }
+
+  // 숙영 토글: 정지·휴식. 피로 회복이 빨라지나(특히 밤) 야습에 취약해진다.
+  function setCamp(world, armyId, on) { const a = armyOf(world, armyId); if (a && !a._merged) { a.camp = !!on; if (on) a.target = null; } }
+
   function step(world, dt, rng) {
     if (world.winner) return;
     rng = rng || Math.random;
     dt = Math.min(dt, 0.05); world.time += dt;
+    updateDayNight(world, dt);
 
     // 부대 사기 → 붕괴(패주). 통솔 높을수록 늦게 무너지고 빨리 수습(전 프레임 _engaged 사용).
     for (const a of world.armies) {
@@ -304,11 +373,14 @@
     // ── 일기토(무장 결투) — 진행 처리 + 신규 감지 ──
     procDuels(world, dt, rng);
     detectDuels(world, dt, rng);
+    // ── 야습 — 숙영/방심한 적을 활동 부대가 기습 → 혼란 ──
+    detectRaids(world, dt, rng);
 
     for (const s of world.soldiers) {
       if (!s.alive || s.gone) continue;
       if (s.duel) continue;                    // 일기토 중인 장수는 정상 행동 정지(결투에 몰입)
       const army = armyOf(world, s.army);
+      const spdMul = army ? (army._spdMul || 1) : 1;   // 혼란 등 상태 이동 배수
       const routing = army && (army.rout || army._r);
       s.flee = routing;
 
@@ -346,19 +418,20 @@
       if (t) {                            // 난전 — 표적 접적·추격·공격
         if (army) army._engaged = true;   // 이 부대는 전투 중(사기 회복 차단)
         const dx = t.x - s.x, dy = t.y - s.y, d = Math.hypot(dx, dy) || 1;
-        if (d > s.range) { const st = s.spd * tz.spd * dt; stepMove(world, s, dx / d * st, dy / d * st); }
+        if (d > s.range) { const st = s.spd * spdMul * tz.spd * dt; stepMove(world, s, dx / d * st, dy / d * st); }
         else {
           s.cd -= dt;
           if (s.cd <= 0) {
             s.cd = s.cdMax;
             const fs = FORM_STATS[s.form] || FORM_STATS['방진'];
             let dmg = s.atk * typeMult(s.troop, t.troop) * (0.8 + rng() * 0.4) * fs.atk * formCounter(s.form, t.form)
-              * tz.atk * (s.troop === '기병' ? tz.cav : 1);   // 지형: 공격·기병 보정
+              * tz.atk * (s.troop === '기병' ? tz.cav : 1)   // 지형: 공격·기병 보정
+              * (army ? (army._atkMul || 1) : 1);            // 피로도·혼란 배수
             if (s.range > 40) world.projectiles.push({ x: s.x, y: s.y, dx: 0, dy: 0, target: t, dmg, team: s.team, ttl: 0 });
             else applyHit(world, t, dmg, s.team);
           }
         }
-      } else if (army) {
+      } else if (army && !army.camp) {   // 숙영 중이면 제자리 휴식(행군 안 함)
         // 공성 밀착: 근처 적 성이 있으면 성벽으로 달라붙는다(진형보다 우선)
         let ec = null, ecd = (CAP_R * 2.4) ** 2;
         for (const c of world.castles) { if (c.owner === s.team) continue; const d = (c.x - s.x) ** 2 + (c.y - s.y) ** 2; if (d < ecd) { ecd = d; ec = c; } }
@@ -378,14 +451,14 @@
               if (v < bd) { bd = v; bcx = nx; bcy = ny; }
             }
             const tx = bcx >= 0 ? (bcx + 0.5) * NAV : army.order.x, ty = bcx >= 0 ? (bcy + 0.5) * NAV : army.order.y;
-            const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy) || 1, st = s.spd * tz.spd * dt;
+            const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy) || 1, st = s.spd * spdMul * tz.spd * dt;
             stepMove(world, s, dx / d * st, dy / d * st);
           } else {
             const ca = Math.cos(army._ang || 0), sa = Math.sin(army._ang || 0);
             const ox = s.off.dx + (s._sx || 0), oy = s.off.dy + (s._sy || 0);
             const tx = army.order.x + (ox * ca - oy * sa), ty = army.order.y + (ox * sa + oy * ca);
             const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy);
-            if (d > 3) { const st = Math.min(d, s.spd * tz.spd * dt); stepMove(world, s, dx / d * st, dy / d * st); }
+            if (d > 3) { const st = Math.min(d, s.spd * spdMul * tz.spd * dt); stepMove(world, s, dx / d * st, dy / d * st); }
           }
         }
       }
@@ -432,10 +505,23 @@
     // 맵 경계
     for (const s of world.soldiers) { if (s.x < 6) s.x = 6; if (s.x > world.W - 6) s.x = world.W - 6; if (s.y < 6) s.y = 6; if (s.y > world.H - 6) s.y = world.H - 6; }
 
-    // 비전투 사기 회복(통솔 비례) — 패주 부대가 후방에서 재정비하도록. _engaged는 다음 틱 위해 리셋.
+    // 사기 회복 + 피로도/숙영/혼란·와해 상태 (_engaged가 유효한 이 시점에서 갱신)
     for (const a of world.armies) {
       const cmd = (a.gen && a.gen.command) || 60;
-      if (!a._engaged && !a._disband && a.morale < 75) a.morale = Math.min(75, a.morale + (1.2 + cmd * 0.045) * dt);   // 해산 부대는 회복 안 함
+      if (a.camp && a._engaged) a.camp = false;                                  // 교전 시작 → 숙영 자동 해제
+      if (a.confused) {                                                          // 혼란: 사기 잠식 → 미수습 시 와해
+        a.confuseT -= dt;
+        a.morale = Math.max(0, a.morale - 3.2 * dt);
+        if (a.confuseT <= 0) a.confused = false;                                // 버텨내면 수습
+        if (a.morale <= 8 && !a._disband) { a.collapsed = true; a._disband = true; a.morale = 0; }   // 와해(붕괴)
+      }
+      const resting = a.camp && !a._engaged && !a.confused;
+      if (resting) a.fatigue = Math.max(0, a.fatigue - (world.night ? 16 : 9) * dt);   // 숙영 회복(밤에 빠름)
+      else a.fatigue = Math.min(100, a.fatigue + (a._engaged ? 3.2 : 1.4) * dt);       // 행군·교전 시 누적
+      a.aware = !(a.camp && world.night && !a.confused);                        // 야간 숙영 = 방심(야습 취약)
+      a._atkMul = fatigueAtk(a.fatigue) * (a.confused ? 0.5 : 1);               // 다음 틱 공격 배수
+      a._spdMul = a.confused ? 0.55 : 1;                                        // 혼란 시 이동 저하
+      if (!a._engaged && !a._disband && !a.confused && a.morale < 75) a.morale = Math.min(75, a.morale + (1.2 + cmd * 0.045) * dt);   // 해산·혼란 부대는 회복 안 함
       a._engaged = false;
     }
 
@@ -501,7 +587,8 @@
     else if (pc === 0) world.winner = 'enemy';
   }
 
-  const RTS = { createWorld, step, stepDuels, moveArmy, sortie, regarrison, armyOf, genRecOf, aliveCount, makeArmy, terrainAt, TERRAIN, AGGRO, CAP_R };
+  const RTS = { createWorld, step, stepDuels, moveArmy, sortie, regarrison, armyOf, genRecOf, aliveCount, makeArmy, terrainAt, TERRAIN, AGGRO, CAP_R,
+    setCamp, tryRaid, raidChance, detectRaids, fatigueAtk, RAID_R, CONFUSE_DUR, DAY_LEN };
   if (typeof module !== 'undefined' && module.exports) module.exports = RTS;
   if (typeof window !== 'undefined') window.RTS = RTS;
 })();
