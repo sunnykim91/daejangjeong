@@ -198,6 +198,9 @@
   </div>
   <div class="ctrls">
     <button class="btn" id="campBtn" style="opacity:.5">🏕 숙영</button>
+    <button class="btn" id="saveBtn" title="저장">💾</button>
+    <button class="btn" id="loadBtn" title="불러오기">📁</button>
+    <button class="btn" id="helpBtn" title="도움말">❓</button>
     <button class="btn" id="muteBtn">🔊</button>
     <button class="btn" id="speedBtn">▶ 1x</button>
     <button class="btn" id="pauseBtn">⏸</button>
@@ -246,6 +249,20 @@
     <div class="dlog" id="duelLog"></div>
     <div class="duelActs" id="duelActs"></div>
     <div class="dresult" id="duelResult"></div>
+  </div></div>
+  <div class="overlay" id="tutOv"><div class="box orn" style="max-width:440px;text-align:left">
+    <div class="seal">兵</div><div class="bxtop" style="text-align:center;letter-spacing:6px">총 력 전 지 침</div>
+    <div style="font-size:13px;line-height:1.95;color:#2c2012">
+      <b>🎯 목표</b> — 적 성을 모두 점령해 천하통일.<br>
+      <b>⚔ 출진</b> — 아군 성 클릭 → 장수·병력·진형 편성 (⚡에너지 1 소모).<br>
+      <b>🖱 이동</b> — 장수 선택 후 맵 클릭. 적과 만나면 자동 교전.<br>
+      <b>🏕 숙영(C)</b> — 밤에 재우면 피로 회복·공격력↑ (단 야습에 취약).<br>
+      <b>🌙 야습</b> — 밤에 숙영·방심한 적을 치면 <b>혼란→와해</b>!<br>
+      <b>📋 방침</b> — 장수 패널에서 진군/정찰/매복/후퇴 등 자동행동 지정.<br>
+      <b>🗡 일기토</b> — 장수끼리 만나면 <b>턴제 결투</b>. 이기면 사기↑.<br>
+      <b>📜 등용</b> — 메뉴의 登用에서 장수를 수집.
+    </div>
+    <div class="row"><button class="btn" id="tutClose">시 작</button></div>
   </div></div>
 </div>
 
@@ -1187,7 +1204,53 @@ function duelFinish(result){
   };
 }
 
-function init(){ resize(); newWorld(); buildRoster(); render(); updateEnergyHud(); setInterval(updateEnergyHud,1000); last=performance.now(); requestAnimationFrame(loop); }
+// ── 세이브 / 로드 (localStorage 스냅샷, Track A) ───────────
+function saveGame(){
+  try{
+    const snap={ v:1, clock:world.clock,
+      castles: world.castles.map(c=>({id:c.id,owner:c.owner,troops:Math.round(c.troops),min:Math.round(c.min)})),
+      generals: world.generals.map(r=>({id:r.def.id,team:r.team,state:r.state,castle:r.castle})),
+      armies: world.armies.filter(a=>!a._merged).map(a=>{ const g=a.members.find(m=>m.gen&&m.alive&&!m.gone);
+        let n=0; for(const m of a.members) if(!m.gen&&m.alive&&!m.gone)n++;
+        return { genId:a.gen.id,team:a.team,dots:n,form:a.form,stance:a.stance,morale:Math.round(a.morale),fatigue:Math.round(a.fatigue||0),camp:!!a.camp,
+          x:g?Math.round(g.x):a.order.x,y:g?Math.round(g.y):a.order.y,ox:Math.round(a.order.x),oy:Math.round(a.order.y) }; }) };
+    localStorage.setItem('dj_total_save', JSON.stringify(snap));
+    screenFx({flash:[120,180,120],fdur:0.25,text:'저장 완료',sub:new Date().toLocaleTimeString(),color:'#bfe8a0',tdur:1.3});
+  }catch(e){ screenFx({text:'저장 실패',color:'#ff9a6a',tdur:1.3}); }
+}
+function loadGame(){
+  let snap; try{ snap=JSON.parse(localStorage.getItem('dj_total_save')); }catch(e){}
+  if(!snap){ screenFx({text:'저장 데이터 없음',color:'#ff9a6a',tdur:1.3}); return false; }
+  newWorld();                                     // 기본 세계 재생성 후 스냅샷 적용
+  world.clock=snap.clock||0;
+  for(const cs of snap.castles){ const c=world.castles.find(x=>x.id===cs.id); if(c){ c.owner=cs.owner; c.troops=cs.troops; c.min=cs.min; } }
+  world.generals.length=0; for(const c of world.castles) c.garrison=[];
+  world.armies.length=0; world.soldiers.length=0;
+  for(const gs of snap.generals){ const def=genById(gs.id); if(!def)continue;
+    const rec={def,team:gs.team,state:gs.state,castle:gs.castle,armyId:null}; world.generals.push(rec);
+    if(gs.state==='garrison'){ const c=world.castles.find(x=>x.id===gs.castle&&x.owner===gs.team); if(c)c.garrison.push(rec); else rec.state='dead'; }
+  }
+  for(const as of (snap.armies||[])){ const def=genById(as.genId); if(!def)continue;
+    const army=RTS.makeArmy(def,as.team,world._aid++,as.x,as.y,Math.max(1,as.dots),as.form||'방진');
+    army.order.x=as.ox; army.order.y=as.oy; army.morale=as.morale; army.fatigue=as.fatigue||0; army.camp=!!as.camp; army.stance=as.stance||'진군';
+    world.armies.push(army); for(const m of army.members) world.soldiers.push(m);
+    const rec=world.generals.find(r=>r.def.id===as.genId&&r.team===as.team); if(rec){ rec.state='field'; rec.castle=null; rec.armyId=army.id; }
+  }
+  explored.fill(0); vis.fill(0);
+  for(const c of world.castles){ c.everSeen=c.owner==='player'; c.seenOwner=c.owner==='player'?c.owner:null; }
+  _castleOwner={}; _duelSeen={}; _confSeen={}; _collSeen={};
+  buildRoster(); selected=null; hideOfficer(); state='play'; $('overlay').classList.remove('show');
+  render(); screenFx({flash:[120,150,200],fdur:0.25,text:'불러오기 완료',color:'#bcd8ff',tdur:1.3});
+  return true;
+}
+$('saveBtn').onclick=saveGame;
+$('loadBtn').onclick=loadGame;
+$('helpBtn').onclick=()=>$('tutOv').classList.add('show');
+$('tutClose').onclick=()=>{ $('tutOv').classList.remove('show'); try{localStorage.setItem('dj_total_tut','1');}catch(e){} };
+
+function init(){ resize(); newWorld(); buildRoster(); render(); updateEnergyHud(); setInterval(updateEnergyHud,1000);
+  try{ if(!localStorage.getItem('dj_total_tut')) $('tutOv').classList.add('show'); }catch(e){}
+  last=performance.now(); requestAnimationFrame(loop); }
 window.addEventListener('resize',()=>{ resize(); render(); });
 init();
 </script>
