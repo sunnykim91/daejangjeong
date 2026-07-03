@@ -51,7 +51,7 @@
 <body>
 <a class="home" href="index.html">← 메뉴</a>
 <div class="wrap">
-  <h1>一 騎 討 · 4:4</h1>
+  <h1>일기토 · 4:4</h1>
   <div class="sub">보유 장수로 4인 팀을 짜라 · 같은 진영은 국가 시너지 · ⚠️ 프로토타입</div>
 
   <div id="select">
@@ -180,7 +180,7 @@ function battleFinish(){
   let reward='';
   if(win){ Meta.addScroll('레어',1); reward='<div style="font-size:12px;color:#bfe8a0;margin:6px">보상 · 레어 등용서 +1</div>'; }
   $('result').style.display='block';
-  $('result').innerHTML=`<div class="rw" style="color:${win?'#7fe89a':'#e06868'}">${win?'勝 · 승리!':'敗 · 패배'}</div>
+  $('result').innerHTML=`<div class="rw" style="color:${win?'#7fe89a':'#e06868'}">${win?'승리!':'패배'}</div>
     <div style="font-size:12px;color:#c9bd98">${r.grade} · ${dDuel.round}R</div>${reward}
     <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
       <button class="btn" onclick="location.reload()">다시</button>
