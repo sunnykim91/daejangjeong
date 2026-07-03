@@ -147,10 +147,11 @@
     <div class="s e"><div class="nm">고구려(적)</div><div class="c" id="eCastle">3</div><div style="font-size:10px">성</div></div>
     <div class="seal">志</div>
     <div class="s p"><div class="nm">백제(아군)</div><div class="c" id="pCastle">3</div><div style="font-size:10px">성</div></div>
+    <div class="s" id="todBox" style="color:#e8c060"><div class="nm" id="todIcon" style="font-size:16px">☀</div><div class="c" id="todTxt" style="font-size:12px">낮</div></div>
   </div>
   <div class="panel">
     <div class="roster orn" id="roster"></div>
-    <div class="tip" id="tip"><b>장수 클릭</b>=선택 · <b>맵 클릭</b>=진격 · <b>아군 성 클릭</b>=출진 편성(선택 중이면 귀환·재정비) · 적 성을 점령하라.</div>
+    <div class="tip" id="tip"><b>장수 클릭</b>=선택 · <b>맵 클릭</b>=진격 · <b>아군 성 클릭</b>=출진/귀환 · <b>C</b>=숙영(밤 휴식→공격력↑) · 밤에 <b>숙영·방심한 적</b>을 기습하면 혼란·와해!</div>
   </div>
   <div class="duelcut" id="duelcut">
     <div><div class="med"><img id="dcA" alt=""></div><div class="who" id="dcAn"></div></div>
@@ -166,9 +167,11 @@
     <div class="stats" id="ofcStats"></div>
     <div class="foot"><span>진형 <b id="ofcForm"></b></span><span>스킬 <b id="ofcSkill"></b></span></div>
     <div class="live">병력 <b id="ofcTroops"></b>　·　사기 <b id="ofcMoraleN"></b>
-      <div class="mbar"><div class="mfill" id="ofcMorale"></div></div></div>
+      <div class="mbar"><div class="mfill" id="ofcMorale"></div></div>
+      <div style="margin-top:5px">피로 <b id="ofcFatigue">0</b>　·　상태 <b id="ofcState">정상</b></div></div>
   </div>
   <div class="ctrls">
+    <button class="btn" id="campBtn" style="opacity:.5">🏕 숙영</button>
     <button class="btn" id="muteBtn">🔊</button>
     <button class="btn" id="speedBtn">▶ 1x</button>
     <button class="btn" id="pauseBtn">⏸</button>
@@ -485,7 +488,7 @@ function newWorld(){
   explored.fill(0); vis.fill(0);
   for(const c of world.castles){ c.everSeen = c.owner==='player'; c.seenOwner = c.owner==='player'?c.owner:null; }
   renderMapBg();
-  _castleOwner={}; _duelSeen={};
+  _castleOwner={}; _duelSeen={}; _confSeen={}; _collSeen={};
   cam.x=0; cam.y=Math.max(0,(MAPH-VH)/2);
 }
 
@@ -708,9 +711,46 @@ function drawDuelCutscene(d){
     ctx.font='bold 40px "Batang",serif'; ctx.fillStyle='rgba(0,0,0,.8)'; ctx.fillText(msg,3,3); ctx.fillStyle=d.killed?'#ff8a5a':'#ffe07a'; ctx.fillText(msg,0,0); ctx.restore(); }
   ctx.restore();
 }
+// ── 밤/낮 + 야습/혼란/와해 연출 ──────────────────────────
+function smooth01(a,b,x){ x=Math.max(0,Math.min(1,(x-a)/(b-a))); return x*x*(3-2*x); }
+function nightDarkness(){ const t=world.tod, s=1-(world.nightFrac||0.42); return smooth01(s,s+0.06,t)*(1-smooth01(0.965,1,t)); }
+function drawCampfire(x,y){ const t=world.time, fl=0.65+0.35*Math.sin(t*13+x*0.7);
+  ctx.fillStyle='#3a2a16'; ctx.fillRect((x-5)|0,y|0,10,2);
+  const g=ctx.createRadialGradient(x,y-4,1,x,y-4,11*fl); g.addColorStop(0,'rgba(255,236,170,.95)'); g.addColorStop(.5,'rgba(255,150,50,.75)'); g.addColorStop(1,'rgba(255,80,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x,y-4,5*fl,8.5*fl,0,0,7); ctx.fill(); }
+function badge(x,y,txt,col){ ctx.font='bold 11px "Batang",serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const w=Math.round(ctx.measureText(txt).width+10), bx=Math.round(x-w/2), by=Math.round(y-8);
+  ctx.fillStyle='rgba(12,10,8,.75)'; ctx.fillRect(bx,by,w,15);
+  ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,w,15);
+  ctx.fillStyle=col; ctx.fillText(txt,x,y); }
+function drawArmyBadges(){
+  for(const a of world.armies){ if(a._merged)continue;
+    const g=a.members.find(m=>m.gen&&m.alive&&!m.gone), cen=g?{x:g.x,y:g.y}:armyCentroid(a); if(!cen)continue;
+    if(a.team==='enemy'&&!visAt(cen.x,cen.y))continue;
+    const sx=cen.x-cam.x, sy=cen.y-cam.y; if(sx<-40||sy<-40||sx>VW+40||sy>VH+40)continue;
+    if(a.camp) drawCampfire(sx+20, sy+12);
+    if(a.collapsed) badge(sx,sy-42,'와해','#ff6a5a');
+    else if(a.confused) badge(sx,sy-42,'혼란','#ffcf5a');
+    else if(a.camp) badge(sx,sy-42, world.night?'숙영·방심':'숙영','#e0b060');
+  }
+}
+let _confSeen={}, _collSeen={};
+function checkRaidEvents(){
+  for(const a of world.armies){ if(a._merged)continue;
+    if(a.confused&&!_confSeen[a.id]){ _confSeen[a.id]=1;
+      if(a.team==='enemy'){ AU.duel(); screenFx({flash:[232,200,115],fdur:0.25,text:'夜襲 성공!',sub:(a.gen&&a.gen.name)+' 부대 혼란',color:'#ffe07a',tdur:1.4}); }
+      else { AU.hit(); screenFx({flash:[200,80,60],fdur:0.3,text:'夜襲 당함!',sub:(a.gen&&a.gen.name)+' 부대 혼란',color:'#ff9a6a',tdur:1.4}); } }
+    if(!a.confused)_confSeen[a.id]=0;
+    if(a.collapsed&&!_collSeen[a.id]){ _collSeen[a.id]=1; AU.boom();
+      screenFx({shake:8,text:(a.gen&&a.gen.name)+' 부대 와해!',sub:a.team==='enemy'?'적 부대 붕괴':'아군 부대 붕괴',color:a.team==='enemy'?'#bcd8ff':'#ff8a6a',tdur:1.5}); } }
+}
+function updateTodHud(){ const b=$('todBox'); if(!b)return; const n=world.night; $('todIcon').textContent=n?'🌙':'☀'; $('todTxt').textContent=n?'밤':'낮'; b.style.color=n?'#9fb0e0':'#e8c060'; }
+function updateCampBtn(){ const b=$('campBtn'); if(!b)return; const a=selected!=null?RTS.armyOf(world,selected):null; b.textContent=(a&&a.camp)?'🏕 숙영중':'🏕 숙영'; b.style.opacity=a?'1':'.5'; }
+
 function render(){
   computeVision();
   checkCastleEvents();
+  checkRaidEvents();
   ctx.fillStyle='#0b1008'; ctx.fillRect(0,0,VW,VH);
   // 지형 배경(맵에서 카메라 영역만 blit)
   ctx.drawImage(bgCv, cam.x, cam.y, VW, VH, 0, 0, VW, VH);
@@ -741,6 +781,9 @@ function render(){
     ctx.font='bold 17px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillText('⚔',mx+1,my-5); ctx.fillStyle='#ffe08a'; ctx.fillText('⚔',mx,my-6);
   }
+  // 밤 어둡게(야간) + 야습/혼란/와해 배지·모닥불
+  const nd=nightDarkness(); if(nd>0.001){ ctx.fillStyle='rgba(12,20,44,'+(nd*0.42).toFixed(3)+')'; ctx.fillRect(0,0,VW,VH); }
+  drawArmyBadges();
   // 전장의 안개 오버레이 (저해상도 fog → 부드럽게 확대)
   const fd=fogImg.data;
   for(let i=0;i<GW*GH;i++){ fd[i*4+3]= vis[i]?0:(explored[i]?128:238); }
@@ -759,6 +802,7 @@ function render(){
   updateRoster();
   $('pCastle').textContent=world.castles.filter(c=>c.owner==='player').length;
   $('eCastle').textContent=world.castles.filter(c=>c.owner==='enemy').length;
+  updateTodHud(); updateCampBtn();
 }
 // ── 미니맵 ────────────────────────────────────────────────
 const mm=$('mm'), mmx=mm.getContext('2d');
@@ -814,6 +858,13 @@ function enemyAI(dt){ aiT-=dt; if(aiT>0)return; aiT=4+Math.random()*2;
     let best=null,bd=Infinity; for(const c of pc){const d=(c.x-g.x)**2+(c.y-g.y)**2; if(d<bd){bd=d;best=c;}}
     if(best) RTS.moveArmy(world,a.id,best.x+(Math.random()*50-25),best.y+((a.id%2)?34:-34));
   }
+  // 야간 숙영: 전선에서 먼 적 부대는 밤에 숙영해 피로 회복(→ 아군 야습 표적). 낮엔 기상.
+  for(const a of world.armies){ if(a.team!=='enemy'||a._merged||a._r||a.confused)continue;
+    const g=a.members.find(m=>m.gen&&m.alive&&!m.gone); if(!g)continue;
+    let near=Infinity; for(const c of world.castles)if(c.owner==='player'){const d=(c.x-g.x)**2+(c.y-g.y)**2; if(d<near)near=d;}
+    if(world.night && near>320*320 && !a._engaged){ if(!a.camp)RTS.setCamp(world,a.id,true); }
+    else if(a.camp && !world.night){ RTS.setCamp(world,a.id,false); }
+  }
 }
 function loop(ts){
   if(state!=='play')return;
@@ -867,6 +918,11 @@ function updateOfficerLive(a){
   const mo=Math.round(a.morale); $('ofcMoraleN').textContent=mo;
   const f=$('ofcMorale'); f.style.width=Math.max(0,mo)+'%';
   f.style.background = (a.rout||a._r)?'linear-gradient(#e06868,#a83a3a)':(mo<35?'linear-gradient(#e0b050,#b07a2a)':'linear-gradient(#8fd66a,#5a9a3a)');
+  const ff=$('ofcFatigue'); if(ff) ff.textContent=Math.round(a.fatigue||0);
+  const st=$('ofcState'); if(st){ let s='정상',col='#26190a';
+    if(a.collapsed){s='와해';col='#b0503a';} else if(a.confused){s='혼란';col='#c9863a';}
+    else if(a.camp){s=world.night?'숙영(방심)':'숙영';col='#5a7c3a';} else if(a.rout||a._r){s='패주';col='#b0503a';}
+    st.textContent=s; st.style.color=col; }
 }
 function hideOfficer(){ $('ofc').classList.remove('show'); }
 
@@ -887,7 +943,7 @@ function chipClick(rec){
   else if(rec.state==='garrison') openSortie(rec.castle);
 }
 // 플레이어 직접 명령 → 이동 + 부대 재정비(패주 해제)로 명령이 먹히게
-function commandArmy(id,x,y){ RTS.moveArmy(world,id,x,y); const a=RTS.armyOf(world,id); if(a && a.morale>0){ a._r=false; a.morale=Math.max(a.morale,32); } }
+function commandArmy(id,x,y){ RTS.moveArmy(world,id,x,y); const a=RTS.armyOf(world,id); if(a){ a.camp=false; if(a.morale>0){ a._r=false; a.morale=Math.max(a.morale,32); } } }
 function selectFromRoster(id){
   const a=RTS.armyOf(world,id), g=a&&a.members.find(m=>m.gen&&m.alive&&!m.gone); if(!g)return;
   selected=id; fillOfficer(a);
@@ -987,13 +1043,16 @@ cv.addEventListener('mousedown',(e)=>{
   // 선택된 부대 이동 명령
   if(selected!==null){ commandArmy(selected,wx,wy); render(); }
 });
-window.addEventListener('keydown',(e)=>{ keys[e.key]=true; });
+window.addEventListener('keydown',(e)=>{ keys[e.key]=true;
+  if((e.key==='c'||e.key==='C')&&selected!=null){ const a=RTS.armyOf(world,selected); if(a&&!a._merged){ RTS.setCamp(world,selected,!a.camp); updateCampBtn(); } }
+});
 window.addEventListener('keyup',(e)=>{ keys[e.key]=false; });
 cv.addEventListener('mousemove',(e)=>{ const {x,y}=evPos(e), M=40; edge.x=x<M?-1:x>VW-M?1:0; edge.y=y<M?-1:y>VH-M?1:0; });
 cv.addEventListener('mouseleave',()=>{ edge.x=edge.y=0; });
 $('speedBtn').onclick=()=>{ speed=speed===1?2:speed===2?4:1; $('speedBtn').textContent=`▶ ${speed}x`; };
 $('pauseBtn').onclick=()=>{ paused=!paused; $('pauseBtn').textContent=paused?'▶':'⏸'; };
 $('muteBtn').onclick=()=>{ AU.resume(); $('muteBtn').textContent=AU.toggle()?'🔊':'🔇'; };
+$('campBtn').onclick=()=>{ if(selected==null)return; const a=RTS.armyOf(world,selected); if(!a||a._merged)return; RTS.setCamp(world,selected,!a.camp); updateCampBtn(); render(); };
 $('soForm').onclick=()=>{ sortieForm=FORMS[(FORMS.indexOf(sortieForm)+1)%FORMS.length]; $('soForm').textContent=sortieForm; sortieFormHint(); };
 $('soDots').oninput=updateSortieUI;
 $('soClose').onclick=closeSortie;
