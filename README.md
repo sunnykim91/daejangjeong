@@ -42,7 +42,8 @@ node test/tune.js          # (참고) 영지전 파라미터 스윕
 | `warfield.html` | 실전 전투 | 단일 회전. 병력 배정·진형·배치 후 수십~수백 병사 실시간 충돌 | ✅ |
 | `campaign.html` | 영지전 | 6영지 노드맵 정복. 편성 후 출정 → warfield 전투로 개전 | ✅ |
 | `codex.html` | 장수 도감 | 8장수 스탯·병종 상성·스킬 해설 | ✅ |
-| `gacha.html` | 등용(가챠) | 등용서로 42장 장수 수집 + 진영 시너지 + 에너지 | ✅ |
+| `gacha.html` | 등용(가챠) | 등용서로 56장 장수 수집 + 진영 시너지 + 에너지 | ✅ |
+| `arena.html` | 일기토 아레나 | 4:4 팀 턴제 결투 — 스킬킷·고유특성·국가 시너지 | ✅ |
 | `index_cards.html` | (백업) | 최초 카드형 UI | deprecated |
 
 > `total.html`이 가장 발전된 메인 모드이고, `campaign.html`은 그 이전의 간이 전략맵입니다.

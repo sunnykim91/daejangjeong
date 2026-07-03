@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 일기토 아레나(4:4)</title>
+<style>
+  :root { --gold:#b8860b; --gold-lt:#e8c873; --ink:#26190a; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; background:radial-gradient(circle at 50% -10%, #2a2010, #120d06 70%); color:#e8e0d0;
+    font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; }
+  .home { position:fixed; top:12px; left:14px; z-index:9; text-decoration:none; font-size:13px; color:var(--ink);
+    background:linear-gradient(#f0e0b6,#cdae78); border:2px solid var(--ink); border-radius:4px; padding:6px 14px; box-shadow:2px 2px 0 rgba(20,14,6,.5); }
+  .wrap { max-width:940px; margin:0 auto; padding:52px 14px 40px; }
+  h1 { text-align:center; font-size:30px; letter-spacing:10px; margin:4px 0; color:var(--gold-lt); text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .sub { text-align:center; font-size:12px; color:#a89466; margin-bottom:16px; }
+  .btn { padding:9px 16px; border-radius:5px; cursor:pointer; font-family:inherit; font-size:15px; color:var(--ink);
+    border:2px solid var(--ink); background:linear-gradient(#f0e0b6,#cdae78); box-shadow:2px 2px 0 rgba(20,14,6,.5); }
+  .btn:active { transform:translate(1px,1px); } .btn.dis { opacity:.4; cursor:default; }
+  .btn.go { background:linear-gradient(#efc866,#b8860b); font-weight:bold; letter-spacing:3px; padding:11px 28px; }
+  .sec { margin:14px 0; } .sec h2 { font-size:15px; letter-spacing:4px; color:var(--gold-lt); border-bottom:1px solid #3a2c16; padding-bottom:4px; }
+  .picked { display:flex; gap:8px; justify-content:center; margin:10px 0; }
+  .slot { width:88px; height:104px; border:2px dashed #5a4420; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6a5836; font-size:12px; }
+  .grid { display:flex; flex-wrap:wrap; gap:7px; justify-content:center; }
+  .card { width:76px; background:linear-gradient(#e6d5ac,#c8ad78); border:2px solid #4a3418; border-radius:5px; padding:4px; text-align:center; cursor:pointer; box-shadow:1px 1px 0 rgba(0,0,0,.4); }
+  .card.on { border-color:#7c2e2e; box-shadow:0 0 8px rgba(124,46,46,.7); }
+  .card.foe { cursor:default; }
+  .card .por { width:52px; height:52px; margin:0 auto; background:#0f1510; border-radius:2px; } .card .por img { width:52px; height:52px; image-rendering:pixelated; }
+  .card .nm { font-size:9px; color:var(--ink); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .rr { font-size:8px; letter-spacing:-1px; }
+  .syn { text-align:center; font-size:12px; color:#8fbf7a; margin:6px 0; min-height:16px; }
+  /* 전투 */
+  #battle { display:none; }
+  .teams { display:flex; gap:10px; align-items:flex-start; justify-content:center; }
+  .col { flex:1; max-width:250px; } .col h3 { text-align:center; font-size:13px; letter-spacing:3px; margin:4px 0; }
+  .hero { display:flex; gap:7px; align-items:center; background:rgba(20,16,8,.6); border:2px solid #3a2c16; border-radius:5px; padding:5px 7px; margin:5px 0; }
+  .hero.act { border-color:var(--gold-lt); box-shadow:0 0 10px rgba(232,200,115,.5); }
+  .hero.dead { opacity:.35; filter:grayscale(1); }
+  .hero .hpor { width:34px; height:34px; flex:0 0 34px; image-rendering:pixelated; background:#0f1510; }
+  .hero .hi { flex:1; min-width:0; } .hero .hn { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hero .hb { height:7px; background:#1a1206; border:1px solid #4a3418; margin-top:2px; } .hero .hf { height:100%; }
+  .hero .hs { font-size:9px; color:#c9bd98; margin-top:1px; }
+  .cen { text-align:center; margin:10px 0; }
+  .dlog { height:80px; overflow-y:auto; background:rgba(10,8,5,.6); border:1px solid #4a3418; border-radius:4px; margin:8px auto; padding:5px 9px; font-size:11px; line-height:1.55; max-width:520px; text-align:left; }
+  .acts { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; min-height:44px; }
+  .dbtn { cursor:pointer; border:2px solid var(--ink); border-radius:5px; padding:6px 9px; min-width:70px; text-align:center; background:linear-gradient(#f0e0b6,#cdae78); color:var(--ink); box-shadow:2px 2px 0 rgba(20,14,6,.5); }
+  .dbtn.dis { opacity:.4; cursor:default; } .dbtn b { display:block; font-size:13px; } .dbtn small { font-size:8px; color:#6b5436; }
+  .result { text-align:center; margin-top:12px; } .result .rw { font-family:"Batang",serif; font-size:26px; font-weight:bold; }
+</style>
+</head>
+<body>
+<a class="home" href="index.html">← 메뉴</a>
+<div class="wrap">
+  <h1>一 騎 討 · 4:4</h1>
+  <div class="sub">보유 장수로 4인 팀을 짜라 · 같은 진영은 국가 시너지 · ⚠️ 프로토타입</div>
+
+  <div id="select">
+    <div class="sec"><h2>내 팀 (최대 4)</h2><div class="picked" id="picked"></div><div class="syn" id="mysyn"></div></div>
+    <div class="sec"><h2>보유 장수</h2><div class="grid" id="pool"></div></div>
+    <div class="sec"><h2>상대</h2><div class="grid" id="foes"></div><div class="syn" id="foesyn"></div></div>
+    <div style="text-align:center;margin-top:16px"><button class="btn go" id="startBtn">결 투 시 작</button></div>
+  </div>
+
+  <div id="battle">
+    <div class="teams">
+      <div class="col"><h3 style="color:#bcd8ff">아군</h3><div id="teamP"></div></div>
+      <div class="col"><h3 style="color:#ffc4c4">적군</h3><div id="teamE"></div></div>
+    </div>
+    <div class="dlog" id="log"></div>
+    <div class="cen"><div class="acts" id="acts"></div></div>
+    <div class="result" id="result" style="display:none"></div>
+  </div>
+</div>
+
+<script src="src/engine.js"></script>
+<script src="src/duel.js"></script>
+<script src="src/cards.js"></script>
+<script src="src/gacha.js"></script>
+<script src="src/meta.js"></script>
+<script>
+const $=(id)=>document.getElementById(id);
+const FCOL=CARDS.FACTION_COLOR;
+function _rgb(h){const n=parseInt(h.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function lighten(h,f){const[r,g,b]=_rgb(h);return`rgb(${r+(255-r)*f|0},${g+(255-g)*f|0},${b+(255-b)*f|0})`;}
+function darken(h,f){const[r,g,b]=_rgb(h);return`rgb(${r*(1-f)|0},${g*(1-f)|0},${b*(1-f)|0})`;}
+const bustCache={};
+function makeBust(g){
+  const key=g.id; if(bustCache[key])return bustCache[key];
+  const main=FCOL[g.faction]||'#8a8f98',armorL=lighten(main,.42),armorD=darken(main,.45);
+  const o='#120d08',sk='#e7c79c',skd='#c99f6e',metal='#cdd3da',wood='#7c5a2e',plume=GACHA.RARITY_COLOR[g.rarity]||'#ccc';
+  const c=document.createElement('canvas');c.width=16;c.height=16;const x=c.getContext('2d');
+  const P=(a,b,col)=>{x.fillStyle=col;x.fillRect(a,b,1,1);};const box=(x0,y0,x1,y1,col)=>{for(let b=y0;b<=y1;b++)for(let a=x0;a<=x1;a++)P(a,b,col);};
+  box(2,11,13,15,armorD);box(3,12,12,15,main);box(3,12,6,13,armorL);
+  box(6,10,9,11,skd);box(5,5,10,10,sk);box(9,6,10,10,skd);P(6,7,o);P(9,7,o);
+  box(4,3,11,5,darken(main,.5));box(5,3,10,4,main);box(4,5,11,5,darken(main,.5));
+  P(7,1,plume);P(8,1,plume);P(7,2,plume);P(8,2,plume);
+  if(g.troop==='창병'){for(let y=2;y<=14;y++)P(13,y,wood);P(13,1,metal);}
+  else if(g.troop==='궁병'){P(13,4,wood);P(14,5,wood);P(14,6,wood);P(14,7,wood);P(14,8,wood);P(13,9,wood);}
+  else if(g.troop==='기병'){box(10,14,14,15,'#2a1e12');box(11,13,13,13,'#3a2a16');}
+  else{box(12,7,14,12,metal);box(12,7,13,11,'#aab2bb');}
+  return bustCache[key]=c.toDataURL();
+}
+const stars=(r)=>'★'.repeat(r);
+function synergyText(ids){
+  const cnt={}; for(const id of ids){const g=CARDS.byId(id); if(g)cnt[g.faction]=(cnt[g.faction]||0)+1;}
+  const parts=[]; for(const f in cnt) if(cnt[f]>=2) parts.push(`${f} ${cnt[f]}인 (+${(cnt[f]-1)*5}% 공격)`);
+  return parts.length?('국가 시너지 · '+parts.join(' · ')):'';
+}
+
+// ── 팀 선택 ──
+let myTeam=[], foeTeam=[];
+function ownedGens(){ const own=Meta.owned(); return own.map(id=>CARDS.byId(id)).filter(Boolean).sort((a,b)=>b.rarity-a.rarity); }
+function buildFoes(){
+  // 4명 이상인 진영 하나를 골라 상위 4명(도전용). 시드 없이 간단 랜덤.
+  const facs=CARDS.FACTIONS.filter(f=>CARDS.byFaction(f).length>=4);
+  const f=facs[(Math.random()*facs.length)|0];
+  foeTeam=CARDS.byFaction(f).slice().sort((a,b)=>b.rarity-a.rarity).slice(0,4).map(g=>g.id);
+}
+function renderSelect(){
+  const own=ownedGens();
+  // 내 팀 슬롯
+  const pk=$('picked'); pk.innerHTML='';
+  for(let i=0;i<4;i++){ const id=myTeam[i]; if(id){ const g=CARDS.byId(id);
+      pk.innerHTML+=`<div class="card on" onclick="toggle('${id}')"><div class="por"><img src="${makeBust(g)}"></div><div class="nm">${g.name}</div><div class="rr" style="color:${GACHA.RARITY_COLOR[g.rarity]}">${stars(g.rarity)}</div></div>`;
+    } else pk.innerHTML+=`<div class="slot">빈 자리</div>`; }
+  $('mysyn').textContent=synergyText(myTeam);
+  // 보유 목록
+  const pool=$('pool'); pool.innerHTML='';
+  for(const g of own){ const on=myTeam.includes(g.id);
+    pool.innerHTML+=`<div class="card${on?' on':''}" onclick="toggle('${g.id}')"><div class="por"><img src="${makeBust(g)}"></div><div class="nm">${g.name}</div><div class="rr" style="color:${GACHA.RARITY_COLOR[g.rarity]}">${stars(g.rarity)}</div></div>`; }
+  // 상대
+  const fo=$('foes'); fo.innerHTML='';
+  for(const id of foeTeam){ const g=CARDS.byId(id);
+    fo.innerHTML+=`<div class="card foe"><div class="por"><img src="${makeBust(g)}"></div><div class="nm">${g.name}</div><div class="rr" style="color:${GACHA.RARITY_COLOR[g.rarity]}">${stars(g.rarity)}</div></div>`; }
+  $('foesyn').textContent=synergyText(foeTeam);
+  $('startBtn').className='btn go'+(myTeam.length>=1?'':' dis');
+}
+window.toggle=function(id){
+  const i=myTeam.indexOf(id);
+  if(i>=0) myTeam.splice(i,1);
+  else if(myTeam.length<4) myTeam.push(id);
+  renderSelect();
+};
+
+// ── 4:4 전투 ──
+let dDuel=null;
+function heroRow(h){
+  const g=CARDS.byId(h.def.id), hpP=Math.max(0,h.hp/h.maxHp*100), act=(dDuel.order[dDuel.idx]===h&&!dDuel.finished);
+  const buffs=h.buffs.filter(b=>b.turns<9000).map(b=>b.type==='atk'?'⚔':b.type==='guard'?'🛡':b.type==='dot'?'🔥':b.type==='weak'?'▼':'').join('');
+  const pas=Duel.PASSIVES[h.passive];
+  return `<div class="hero${h.alive?'':' dead'}${act?' act':''}">
+    <img class="hpor" src="${makeBust(g)}">
+    <div class="hi"><div class="hn" style="color:${h.side==='p'?'#bcd8ff':'#ffc4c4'}">${h.name}</div>
+      <div class="hb"><div class="hf" style="width:${hpP}%;background:${h.side==='p'?'#5a94e0':'#df6060'}"></div></div>
+      <div class="hs">${Math.max(0,h.hp)|0}/${h.maxHp} · ${pas?pas.name:''} ${buffs}</div></div></div>`;
+}
+function renderBattle(){
+  $('teamP').innerHTML=dDuel.teams.p.map(heroRow).join('');
+  $('teamE').innerHTML=dDuel.teams.e.map(heroRow).join('');
+  const box=$('log'), L=dDuel.log.slice(-8); box.innerHTML=L.map(m=>`<div>${m}</div>`).join(''); box.scrollTop=box.scrollHeight;
+}
+function showKit(actor){
+  const box=$('acts'); box.innerHTML='';
+  for(const id of actor.kit){ const sk=Duel.SKILLS[id], ready=Duel.skillReady(actor,id);
+    box.innerHTML+=`<button class="dbtn${ready?'':' dis'}" ${ready?`onclick="playerSkill('${id}')"`:''}><b>${sk.name}</b><small>${ready?sk.desc:'재사용 '+actor.cds[id]+'턴'}</small></button>`;
+  }
+}
+window.playerSkill=function(id){ $('acts').innerHTML=''; Duel.useSkill(dDuel,id); renderBattle(); if(dDuel.finished)return battleFinish(); setTimeout(battleTurn,350); };
+function battleTurn(){
+  if(dDuel.finished)return battleFinish();
+  Duel.beginTurn(dDuel); renderBattle();
+  if(dDuel.finished)return battleFinish();
+  const actor=dDuel.order[dDuel.idx];
+  if(actor.side==='p') showKit(actor);
+  else setTimeout(()=>{ Duel.useSkill(dDuel,Duel.aiPick(dDuel)); renderBattle(); if(dDuel.finished)return battleFinish(); setTimeout(battleTurn,450); },450);
+}
+function battleFinish(){
+  $('acts').innerHTML=''; renderBattle();
+  const r=dDuel.result, win=r.winner==='p';
+  let reward='';
+  if(win){ Meta.addScroll('레어',1); reward='<div style="font-size:12px;color:#bfe8a0;margin:6px">보상 · 레어 등용서 +1</div>'; }
+  $('result').style.display='block';
+  $('result').innerHTML=`<div class="rw" style="color:${win?'#7fe89a':'#e06868'}">${win?'勝 · 승리!':'敗 · 패배'}</div>
+    <div style="font-size:12px;color:#c9bd98">${r.grade} · ${dDuel.round}R</div>${reward}
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+      <button class="btn" onclick="location.reload()">다시</button>
+      <button class="btn" id="reBtn">팀 재선택</button></div>`;
+  $('reBtn').onclick=()=>{ $('battle').style.display='none'; $('select').style.display='block'; $('result').style.display='none'; };
+}
+$('startBtn').onclick=()=>{
+  if(myTeam.length<1)return;
+  dDuel=Duel.createDuel(myTeam.map(CARDS.byId), foeTeam.map(CARDS.byId), {});
+  $('select').style.display='none'; $('battle').style.display='block';
+  renderBattle(); battleTurn();
+};
+
+// 초기: 보유 상위 4명 자동 편성
+(function(){ buildFoes(); const own=ownedGens(); myTeam=own.slice(0,4).map(g=>g.id); renderSelect(); })();
+</script>
+</body>
+</html>

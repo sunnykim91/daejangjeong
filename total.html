@@ -485,11 +485,12 @@ const TPAL={
   '물':['#3f74a6','#4d84b6','#35608f'],
   '숲':['#2c4a24','#356029','#294821'],
   '늪':['#4a5836','#586540','#3e4a2e'],
+  '습지':['#4d5a48','#5a6a52','#43503c'],
 };
 function zoneAt(x,y){ for(const z of world.terrain){ if(z.shape==='rect'){ if(x>=z.x0&&x<=z.x1&&y>=z.y0&&y<=z.y1)return z.type; } else if((x-z.x)**2+(y-z.y)**2<=z.r*z.r)return z.type; } return '평야'; }
 // 실제 픽셀 타일셋(CC0 Zelda-like Overworld, 프로토타입 플레이스홀더 — 디자이너 에셋으로 교체 예정)
 const TILE=new Image(); let tileReady=false; TILE.onload=()=>{ tileReady=true; if(world){ renderMapBg(); render(); } }; TILE.src='assets/art/gfx/Overworld.png';
-const TSRC={ '평야':[0,0], '언덕':[0,0], '물':[1,1], '숲':[0,5], '산악':[1,23], '늪':[1,29] };   // [타일col,row] 16px
+const TSRC={ '평야':[0,0], '언덕':[0,0], '물':[1,1], '숲':[0,5], '산악':[1,23], '늪':[1,29], '습지':[1,29] };   // [타일col,row] 16px
 function renderMapBg(){
   bgCv.width=MAPW; bgCv.height=MAPH; const c=bgx; c.imageSmoothingEnabled=false;
   if(tileReady){                                    // 타일셋 블릿
@@ -525,6 +526,7 @@ function terrain(){ return [
   {type:'물',   shape:'rect',   x0:MAPW*0.46, x1:MAPW*0.55, y0:MAPH*0.12, y1:MAPH*0.88},   // 남북 강
   {type:'숲',   shape:'circle', x:MAPW*0.64, y:MAPH*0.74, r:150},
   {type:'늪',   shape:'circle', x:MAPW*0.70, y:MAPH*0.30, r:115},
+  {type:'습지', shape:'circle', x:MAPW*0.34, y:MAPH*0.62, r:110},
   {type:'언덕', shape:'circle', x:MAPW*0.62, y:MAPH*0.50, r:100},
 ]; }
 function newWorld(){

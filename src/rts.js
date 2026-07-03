@@ -29,6 +29,7 @@
     '물':   { spd: 0.50, atk: 0.95, taken: 1.22, cav: 0.80, ranged: 1.00 },
     '숲':   { spd: 0.78, atk: 1.00, taken: 1.00, cav: 0.80, ranged: 0.55 },
     '늪':   { spd: 0.50, atk: 0.90, taken: 1.10, cav: 0.55, ranged: 1.00 },
+    '습지': { spd: 0.62, atk: 0.95, taken: 1.08, cav: 0.60, ranged: 1.00 },   // 기병 약화·이동 감소(늪과 별개)
   };
   const PLAIN = TERRAIN['평야'];
   function terrainAt(world, x, y) {
