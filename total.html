@@ -191,6 +191,7 @@
     </div>
     <div class="stats" id="ofcStats"></div>
     <div class="foot"><span>진형 <b id="ofcForm"></b></span><span>스킬 <b id="ofcSkill"></b></span></div>
+    <div class="live" style="display:flex;align-items:center;gap:6px;margin-top:6px">방침 <select id="ofcStance" style="flex:1;font-family:inherit;font-size:12px;background:#efe0b6;border:1px solid #7a5a2e;border-radius:3px;color:#26190a;padding:2px"></select></div>
     <div class="live">병력 <b id="ofcTroops"></b>　·　사기 <b id="ofcMoraleN"></b>
       <div class="mbar"><div class="mfill" id="ofcMorale"></div></div>
       <div style="margin-top:5px">피로 <b id="ofcFatigue">0</b>　·　상태 <b id="ofcState">정상</b></div></div>
@@ -945,6 +946,7 @@ function fillOfficer(a){
   $('ofcMeta').innerHTML=`${g.faction} · ${g.troop} · <span class="stars">${'★'.repeat(g.rarity)}${'☆'.repeat(5-g.rarity)}</span>`;
   $('ofcStats').innerHTML=['might','command','intellect','agility'].map(k=>ofcStat(k,g[k])).join('');
   $('ofcForm').textContent=a.form; $('ofcSkill').textContent=g.skill;
+  const sel=$('ofcStance'); if(sel){ if(!sel._built){ sel._built=1; sel.innerHTML=RTS.STANCES.map(s=>`<option>${s}</option>`).join(''); sel.onchange=()=>{ if(selected!=null) RTS.setStance(world,selected,sel.value); }; } sel.value=a.stance||'진군'; }
   updateOfficerLive(a); $('ofc').classList.add('show');
 }
 function updateOfficerLive(a){

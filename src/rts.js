@@ -126,7 +126,7 @@
     });
     return { id, team, gen: g, form, order: { x: cx, y: cy }, morale: 75, _engaged: false,
       fatigue: 0, camp: false, aware: true, confused: false, confuseT: 0, collapsed: false,
-      _atkMul: 1, _spdMul: 1, _raidCd: 0, _marchMul: 1 + ((g._setFx && g._setFx.march) || 0), members };   // 기병 세트: 행군 속도↑
+      _atkMul: 1, _spdMul: 1, _raidCd: 0, _marchMul: 1 + ((g._setFx && g._setFx.march) || 0), stance: '진군', _hold: false, _noEngage: false, _stanceSpd: 1, members };   // 기병 세트: 행군 속도↑
   }
 
   function createWorld(opts) {
@@ -375,6 +375,27 @@
   // 숙영 토글: 정지·휴식. 피로 회복이 빨라지나(특히 밤) 야습에 취약해진다.
   function setCamp(world, armyId, on) { const a = armyOf(world, armyId); if (a && !a._merged) { a.camp = !!on; if (on) a.target = null; } }
 
+  // ── 부대 방침(Stance) — 큰 방향만 정하면 통솔/AI가 세부 처리 (요구사항 v4 §6) ──
+  const STANCES = ['진군', '대기', '방어', '정찰', '선발', '우회', '야습', '매복', '후퇴', '합류'];
+  function centroidOf(a) { let x = 0, y = 0, n = 0; for (const m of a.members) if (m.alive && !m.gone && !m.gen) { x += m.x; y += m.y; n++; } return n ? { x: x / n, y: y / n } : null; }
+  function nearestCastle(world, team, x, y) { let c = null, bd = Infinity; for (const k of world.castles) if (k.owner === team) { const d = (k.x - x) ** 2 + (k.y - y) ** 2; if (d < bd) { bd = d; c = k; } } return c; }
+  function setStance(world, armyId, st) { const a = armyOf(world, armyId); if (a && STANCES.includes(st)) { a.stance = st; a._flow = null; } }
+  // 방침별 행동: 이동 목표(order) 재설정 + 플래그(_hold 정지 / _noEngage 비교전 / _stanceSpd 속도).
+  function applyStance(world, a) {
+    a._hold = false; a._noEngage = false; a._stanceSpd = 1;
+    const cen = centroidOf(a); if (!cen) return;
+    switch (a.stance) {
+      case '대기': case '방어': a._hold = true; break;                       // 현 위치 유지(방어는 성 근처면 수성)
+      case '정찰': a._noEngage = true; a._stanceSpd = 1.12; break;           // 교전 회피 + 기민
+      case '선발': a._stanceSpd = 1.25; break;                               // 본대보다 앞서 빠르게
+      case '후퇴': { const c = nearestCastle(world, a.team, cen.x, cen.y); if (c) { a.order.x = c.x; a.order.y = c.y; } a._noEngage = true; a._stanceSpd = 1.15; break; }
+      case '합류': { let t = null, bd = Infinity; for (const b of world.armies) { if (b === a || b.team !== a.team || b._merged) continue; const bc = centroidOf(b); if (bc) { const d = (bc.x - cen.x) ** 2 + (bc.y - cen.y) ** 2; if (d < bd) { bd = d; t = bc; } } } if (t) { a.order.x = t.x; a.order.y = t.y; } break; }
+      case '야습': { if (world.night) { let t = null, bd = Infinity; for (const b of world.armies) { if (b.team === a.team || b._merged || !(b.camp || !b.aware)) continue; const bc = centroidOf(b); if (bc) { const d = (bc.x - cen.x) ** 2 + (bc.y - cen.y) ** 2; if (d < bd) { bd = d; t = bc; } } } if (t) { a.order.x = t.x; a.order.y = t.y; } } break; }
+      case '매복': { const tt = typeAt(world, cen.x, cen.y); a.camp = (tt === '숲' || tt === '산악'); break; }   // 엄폐 지형에서 은폐 대기
+      default: break;                                                        // 진군·우회 = 기본 행군
+    }
+  }
+
   function step(world, dt, rng) {
     if (world.winner || world.duelRequest) return;   // 턴제 일기토 진행 중엔 전쟁 정지
     rng = rng || Math.random;
@@ -383,6 +404,7 @@
 
     // 부대 사기 → 붕괴(패주). 통솔 높을수록 늦게 무너지고 빨리 수습(전 프레임 _engaged 사용).
     for (const a of world.armies) {
+      applyStance(world, a);                           // 부대 방침 → 이동목표·플래그 갱신
       const cmd = (a.gen && a.gen.command) || 60;
       const routThresh = 34 - cmd * 0.14;              // 통솔100→20, 50→27, 0→34
       if (a.morale <= 0) a._r = true;
@@ -407,7 +429,7 @@
       if (!s.alive || s.gone) continue;
       if (s.duel) continue;                    // 일기토 중인 장수는 정상 행동 정지(결투에 몰입)
       const army = armyOf(world, s.army);
-      const spdMul = army ? (army._spdMul || 1) * (army._marchMul || 1) : 1;   // 혼란·기병세트 등 이동 배수
+      const spdMul = army ? (army._spdMul || 1) * (army._marchMul || 1) * (army._stanceSpd || 1) : 1;   // 혼란·기병세트·방침 이동 배수
       const routing = army && (army.rout || army._r);
       s.flee = routing;
 
@@ -429,7 +451,7 @@
       let t = s.target;
       if (t && (!t.alive || t.gone || t.flee || ((t.x - s.x) ** 2 + (t.y - s.y) ** 2) > range2)) t = null;
       s.rt -= dt;
-      if (!t && s.rt <= 0) {
+      if (!t && s.rt <= 0 && !(army && army._noEngage)) {   // 정찰·후퇴는 교전 회피
         s.rt = 0.16 + rng() * 0.14;
         const acq2 = s.range > 40 ? (s.range * 1.05) ** 2 : ENGAGE * ENGAGE;  // 접적 반경(궁병은 사거리 내)
         let best = null, bd = acq2;
@@ -458,7 +480,7 @@
             else applyHit(world, t, dmg, s.team);
           }
         }
-      } else if (army && !army.camp) {   // 숙영 중이면 제자리 휴식(행군 안 함)
+      } else if (army && !army.camp && !army._hold) {   // 숙영·대기/방어면 제자리(행군 안 함)
         // 공성 밀착: 근처 적 성이 있으면 성벽으로 달라붙는다(진형보다 우선)
         let ec = null, ecd = (CAP_R * 2.4) ** 2;
         for (const c of world.castles) { if (c.owner === s.team) continue; const d = (c.x - s.x) ** 2 + (c.y - s.y) ** 2; if (d < ecd) { ecd = d; ec = c; } }
@@ -615,7 +637,7 @@
   }
 
   const RTS = { createWorld, step, stepDuels, moveArmy, sortie, regarrison, armyOf, genRecOf, aliveCount, makeArmy, terrainAt, TERRAIN, AGGRO, CAP_R,
-    setCamp, tryRaid, raidChance, detectRaids, fatigueAtk, applyDuelResult, resolveDuelAuto, RAID_R, CONFUSE_DUR, DAY_LEN, DUEL_R };
+    setCamp, tryRaid, raidChance, detectRaids, fatigueAtk, applyDuelResult, resolveDuelAuto, setStance, STANCES, RAID_R, CONFUSE_DUR, DAY_LEN, DUEL_R };
   if (typeof module !== 'undefined' && module.exports) module.exports = RTS;
   if (typeof window !== 'undefined') window.RTS = RTS;
 })();
