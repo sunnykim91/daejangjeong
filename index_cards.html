@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 일기토</title>
+<style>
+  :root {
+    --bg: #14110f; --panel: #211c18; --line: #3a322b;
+    --gold: #c9a227; --player: #4a90d9; --enemy: #c0392b;
+    --hp: #5cb85c; --hp-low: #d9534f; --txt: #e8e0d4; --dim: #9b8f80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  h1 { text-align: center; color: var(--gold); font-size: 22px; margin: 8px 0 4px; letter-spacing: 4px; }
+  .sub { text-align: center; color: var(--dim); margin-bottom: 16px; font-size: 12px; }
+
+  .morale-row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .morale { flex: 1; }
+  .morale label { font-size: 12px; color: var(--dim); }
+  .morale-bar { height: 14px; background: #000; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
+  .morale-fill { height: 100%; transition: width .4s; }
+  .rout { color: var(--enemy); font-weight: bold; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .4; } }
+
+  .team { margin-bottom: 10px; }
+  .team-title { font-size: 12px; color: var(--dim); margin: 6px 0; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px; position: relative; transition: transform .1s, box-shadow .2s;
+  }
+  .card.enemy-side { border-top: 2px solid var(--enemy); }
+  .card.player-side { border-top: 2px solid var(--player); }
+  .card.dead { opacity: .3; filter: grayscale(1); }
+  .card.active { box-shadow: 0 0 0 2px var(--gold); transform: translateY(-2px); }
+  .card.targetable { cursor: pointer; box-shadow: 0 0 0 2px var(--enemy); }
+  .card.targetable:hover { transform: scale(1.04); }
+  .name { font-weight: bold; font-size: 13px; }
+  .troop { font-size: 11px; color: var(--dim); }
+  .hp-bar { height: 10px; background: #000; border-radius: 5px; overflow: hidden; margin: 5px 0 2px; }
+  .hp-fill { height: 100%; background: var(--hp); transition: width .3s; }
+  .hp-text { font-size: 10px; color: var(--dim); }
+  .badges { margin-top: 4px; min-height: 16px; }
+  .badge { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 8px; margin: 1px; background: #000; border: 1px solid var(--line); }
+
+  .actions { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 12px 0; min-height: 70px; }
+  .actions .who { font-size: 13px; margin-bottom: 8px; }
+  .actions .who b { color: var(--gold); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: #2e2823; color: var(--txt); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit;
+  }
+  button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button.primary { background: var(--gold); color: #1a1410; border-color: var(--gold); font-weight: bold; }
+  .hint { color: var(--dim); font-size: 12px; }
+
+  .log { background: #0d0b09; border: 1px solid var(--line); border-radius: 8px; padding: 10px; height: 180px; overflow-y: auto; font-size: 12px; }
+  .log div { padding: 1px 0; }
+  .log .round { color: var(--gold); margin-top: 4px; }
+  .log .kill { color: var(--enemy); font-weight: bold; }
+  .log .attack { color: var(--txt); }
+  .log .rally, .log .guard { color: var(--player); }
+  .log .stratagem { color: #b06fd1; }
+  .log .dot { color: #e08a3c; }
+  .log .rout { color: var(--enemy); }
+  .log .end { color: var(--gold); font-weight: bold; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .result-box { background: var(--panel); border: 2px solid var(--gold); border-radius: 12px; padding: 28px; text-align: center; max-width: 360px; }
+  .result-box h2 { margin: 0 0 6px; font-size: 28px; }
+  .result-box .grade { color: var(--gold); font-size: 40px; font-weight: bold; }
+  .result-box p { color: var(--dim); margin: 6px 0; }
+  .json { font-size: 10px; color: var(--dim); text-align: left; background: #000; padding: 8px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>大 長 征</h1>
+  <div class="sub">4:4 턴제 일기토 — 백제 vs 고구려</div>
+
+  <div class="morale-row">
+    <div class="morale">
+      <label>적군 사기 <span id="enemyMoraleVal"></span></label>
+      <div class="morale-bar"><div class="morale-fill" id="enemyMorale" style="background:var(--enemy)"></div></div>
+    </div>
+    <div class="morale">
+      <label>아군 사기 <span id="playerMoraleVal"></span></label>
+      <div class="morale-bar"><div class="morale-fill" id="playerMorale" style="background:var(--player)"></div></div>
+    </div>
+  </div>
+
+  <div class="team">
+    <div class="team-title">⚔ 적군 (고구려) — AI</div>
+    <div class="cards" id="enemyCards"></div>
+  </div>
+  <div class="team">
+    <div class="team-title">🛡 아군 (백제) — 당신</div>
+    <div class="cards" id="playerCards"></div>
+  </div>
+
+  <div class="actions" id="actionPanel">
+    <div class="who">전투 준비 완료</div>
+    <div class="btns"><button class="primary" id="startBtn">전투 시작</button></div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="result-box">
+    <h2 id="rWinner"></h2>
+    <div class="grade" id="rGrade"></div>
+    <p id="rInfo"></p>
+    <div class="json" id="rJson"></div>
+    <button class="primary" onclick="location.reload()">다시 한 판</button>
+  </div>
+</div>
+
+<script src="src/engine.js"></script>
+<script src="src/data.js"></script>
+<script>
+const E = window.Engine;
+let battle, pendingResolve = null, selecting = null;
+
+const $ = (id) => document.getElementById(id);
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── 렌더링 ──────────────────────────────────────────────
+function statusBadges(f) {
+  let b = '';
+  for (const s of f.statuses) b += `<span class="badge">${s.type}${s.turns>1?'·'+s.turns:''}</span>`;
+  for (const k of ['skill','stratagem','rally']) {
+    if (f.cd[k] > 0) {
+      const nm = k === 'skill' ? '스킬' : k === 'stratagem' ? '책략' : '고양';
+      b += `<span class="badge">${nm}CD${f.cd[k]}</span>`;
+    }
+  }
+  return b;
+}
+
+function cardHTML(f, side) {
+  const pct = Math.max(0, (f.hp / f.maxHp) * 100);
+  const color = pct < 30 ? 'var(--hp-low)' : 'var(--hp)';
+  return `<div class="card ${side}-side ${f.alive?'':'dead'}" data-id="${f.id}" data-team="${f.team}">
+    <div class="name">${f.name}</div>
+    <div class="troop">${f.troop} · 무${f.might}/통${f.command}/지${f.intellect}/민${f.agility}</div>
+    <div class="hp-bar"><div class="hp-fill" style="width:${pct}%;background:${color}"></div></div>
+    <div class="hp-text">${Math.ceil(f.hp)} / ${f.maxHp}</div>
+    <div class="badges">${f.alive ? statusBadges(f) : '전사'}</div>
+  </div>`;
+}
+
+function render(activeId) {
+  $('enemyCards').innerHTML = battle.teams.enemy.map((f) => cardHTML(f, 'enemy')).join('');
+  $('playerCards').innerHTML = battle.teams.player.map((f) => cardHTML(f, 'player')).join('');
+  if (activeId) {
+    const el = document.querySelector(`.card[data-id="${activeId}"]`);
+    if (el) el.classList.add('active');
+  }
+  for (const team of ['player', 'enemy']) {
+    const m = battle.morale[team];
+    $(team + 'Morale').style.width = m + '%';
+    $(team + 'MoraleVal').textContent = m + (battle.rout[team] ? ' ⚠붕괴' : '');
+    $(team + 'MoraleVal').className = battle.rout[team] ? 'rout' : '';
+  }
+}
+
+function renderLog() {
+  const el = $('log');
+  el.innerHTML = battle.log.map((l) => `<div class="${l.kind}">${l.msg}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── 타겟 선택 모드 ──────────────────────────────────────
+function pickTarget(validTargets) {
+  return new Promise((resolve) => {
+    selecting = { resolve, ids: validTargets.map((t) => t.id) };
+    for (const t of validTargets) {
+      const el = document.querySelector(`.card[data-id="${t.id}"]`);
+      if (el) el.classList.add('targetable');
+    }
+    $('actionPanel').querySelector('.btns').innerHTML = '<span class="hint">▶ 공격할 적을 클릭하세요</span>';
+  });
+}
+document.addEventListener('click', (e) => {
+  if (!selecting) return;
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const id = card.dataset.id;
+  if (!selecting.ids.includes(id)) return;
+  const target = E.allOf(battle).find((f) => f.id === id);
+  const r = selecting.resolve; selecting = null;
+  document.querySelectorAll('.targetable').forEach((c) => c.classList.remove('targetable'));
+  r(target);
+});
+
+// ── 플레이어 행동 입력 ──────────────────────────────────
+function chooseAction(actor) {
+  return new Promise((resolve) => {
+    $('actionPanel').querySelector('.who').innerHTML =
+      `<b>${actor.name}</b>의 차례 — 행동을 선택하세요`;
+    const foes = E.aliveOf(battle, 'enemy');
+    const btns = $('actionPanel').querySelector('.btns');
+    btns.innerHTML = '';
+
+    const add = (label, enabled, handler) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.disabled = !enabled;
+      b.onclick = handler;
+      btns.appendChild(b);
+    };
+
+    const clear = () => { btns.innerHTML = ''; };
+
+    add('공격', true, async () => {
+      clear();
+      const t = await pickTarget(foes);
+      resolve({ type: '공격', target: t });
+    });
+    add('방어', true, () => { clear(); resolve({ type: '방어' }); });
+
+    const single = actor.skill === '강타' || actor.skill === '분기';
+    add(`스킬·${actor.skill}`, actor.cd.skill === 0, async () => {
+      clear();
+      if (single) { const t = await pickTarget(foes); resolve({ type: '스킬', target: t }); }
+      else resolve({ type: '스킬' });   // 연격/저격은 자동 대상
+    });
+
+    if (actor.stratagem) {
+      add(`책략·${actor.stratagem}`, actor.cd.stratagem === 0, async () => {
+        clear();
+        const t = await pickTarget(foes);
+        resolve({ type: '책략', target: t });
+      });
+    }
+    add('사기고양', actor.cd.rally === 0, () => { clear(); resolve({ type: '사기고양' }); });
+  });
+}
+
+// ── 메인 게임 루프 (인터랙티브) ────────────────────────
+async function gameLoop() {
+  while (!battle.finished) {
+    battle.round++;
+    E.logEvent(battle, `━━━ 라운드 ${battle.round} ━━━`, 'round');
+    const order = E.computeOrder(battle);
+
+    for (const actor of order) {
+      if (battle.finished) break;
+      if (!actor.alive) continue;
+      render(actor.id);
+      renderLog();
+
+      if (actor.team === 'player') {
+        // 플레이어 입력. (동요/혼란 판정은 takeTurn 안에서 처리)
+        const action = await chooseAction(actor);
+        battle.strategy.player = () => action;
+        $('actionPanel').querySelector('.who').textContent = `${actor.name} 행동 중...`;
+        $('actionPanel').querySelector('.btns').innerHTML = '';
+        await delay(150);
+      } else {
+        $('actionPanel').querySelector('.who').textContent = `적 ${actor.name} 행동 중...`;
+        await delay(450);
+      }
+
+      E.takeTurn(battle, actor);
+      render();
+      renderLog();
+      await delay(250);
+
+      const v = E.checkVictory(battle);
+      if (v) { finish(v); return; }
+    }
+
+    E.endRound(battle);
+    render();
+    renderLog();
+    if (battle.round >= battle.maxRounds) { finish(E.judgeTimeout(battle)); return; }
+  }
+}
+
+function finish(result) {
+  render();
+  renderLog();
+  const win = result.winner === 'player';
+  $('rWinner').textContent = win ? '승  리' : '패  배';
+  $('rWinner').style.color = win ? 'var(--player)' : 'var(--enemy)';
+  $('rGrade').textContent = win ? result.grade : (result.grade === '대승' ? '대패' : '석패');
+  $('rInfo').textContent = `${result.rounds}라운드 · 생존 ${result.survivors.length}명 · 사기차 ${result.moraleDiff}`;
+  $('rJson').textContent = JSON.stringify(result, null, 2);
+  $('overlay').classList.add('show');
+  $('actionPanel').querySelector('.who').textContent = '전투 종료';
+}
+
+// ── 시작 ────────────────────────────────────────────────
+function init() {
+  const seed = Math.floor(Math.random() * 1e9);
+  battle = E.createBattle(ROSTER, { seed });
+  render();
+  renderLog();
+}
+$('startBtn').onclick = () => {
+  $('actionPanel').querySelector('.btns').innerHTML = '';
+  gameLoop();
+};
+init();
+</script>
+</body>
+</html>

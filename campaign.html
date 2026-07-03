@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 영지전</title>
+<style>
+  :root { --ink:#3a2c1a; --gold:#b8860b; --gold-lt:#e8c873; --player:#2f5a8c; --enemy:#8c2f2f; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body { background:#0b1018; color:var(--ink); font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; overflow:hidden; user-select:none; }
+  .stage { position:relative; width:100vw; height:100vh; max-width:1100px; margin:0 auto; overflow:hidden; background:#2b3a24; }
+  canvas#map { position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0;
+    image-rendering:pixelated; image-rendering:crisp-edges; }
+
+  .topbar { position:absolute; top:0; left:0; right:0; z-index:6; display:flex; justify-content:center; align-items:center; gap:14px; padding:8px; }
+  .tag { font-size:13px; letter-spacing:2px; color:#f0e6c0; background:rgba(14,20,16,.72);
+    border:2px solid #2c2012; border-radius:4px; padding:4px 14px; box-shadow:2px 2px 0 rgba(0,0,0,.5);
+    font-family:"Courier New",monospace; }
+  .tag b.p { color:#7fb0e8; } .tag b.e { color:#e89090; }
+  .home { position:absolute; top:10px; left:12px; z-index:7; text-decoration:none; font-size:12px; color:#2c2012;
+    background:linear-gradient(#f0e0b6,#cdae78); border:2px solid #2c2012; border-radius:4px; padding:5px 12px; box-shadow:2px 2px 0 rgba(20,14,6,.55); }
+
+  .node { position:absolute; transform:translate(-50%,-50%); z-index:3; text-align:center; cursor:pointer; transition:transform .12s; }
+  .node:hover { transform:translate(-50%,-50%) scale(1.08); }
+  .castle { width:48px; height:48px; margin:0 auto; display:flex; align-items:center; justify-content:center;
+    position:relative; border-radius:3px; }
+  .castle .csp { width:48px; height:48px; image-rendering:pixelated; image-rendering:crisp-edges;
+    filter:drop-shadow(2px 2px 0 rgba(0,0,0,.55)); }
+  .castle .bld { position:absolute; inset:3px; width:calc(100% - 6px); height:calc(100% - 6px); object-fit:cover; z-index:2; image-rendering:pixelated; }
+  .node.selected .castle { box-shadow:0 0 0 3px var(--gold-lt), 0 0 14px 3px rgba(232,200,115,.7); }
+  .node.targetable .castle { box-shadow:0 0 0 3px var(--enemy), 0 0 12px 3px rgba(180,60,60,.7); animation:pulse 1s infinite; }
+  @keyframes pulse { 50%{ box-shadow:0 0 0 5px var(--enemy), 0 0 18px 6px rgba(180,60,60,.5); } }
+  .nname { font-size:12px; margin-top:2px; color:#f4ecd2; font-weight:bold; text-shadow:1px 1px 0 rgba(0,0,0,.7); }
+  .ms-track { width:56px; height:7px; margin:2px auto 0; border:1px solid #14100a; overflow:hidden; background:#14100a; box-shadow:1px 1px 0 rgba(0,0,0,.4); }
+  .ms-fill { height:100%; transition:width .4s; }
+  .ms-text { font-size:10px; color:#d8cca8; text-shadow:1px 1px 0 rgba(0,0,0,.7); font-family:"Courier New",monospace; }
+
+  .panel { position:absolute; bottom:0; left:0; right:0; z-index:6; background:linear-gradient(rgba(14,20,16,0),rgba(14,20,16,.94));
+    border-top:2px solid #2c2012; padding:12px 12px 14px; min-height:78px; }
+  .panel .msg { text-align:center; font-size:14px; color:#e8e0d0; margin-bottom:9px; text-shadow:1px 1px 0 rgba(0,0,0,.6); }
+  .panel .msg b { color:#e8c873; }
+  .btns { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .abtn { min-width:84px; padding:9px 14px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:14px;
+    color:#2c2012; border:2px solid #2c2012; background:linear-gradient(#f0e0b6,#cdae78); box-shadow:2px 2px 0 rgba(20,14,6,.55); }
+  .abtn:hover:not(:disabled){ transform:translate(-1px,-1px); box-shadow:3px 3px 0 rgba(20,14,6,.55); background:linear-gradient(#f7ecc8,#d8bb86); }
+  .abtn:active:not(:disabled){ transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(20,14,6,.55); }
+  .abtn:disabled{ opacity:.4; cursor:not-allowed; }
+  .abtn.ghost { background:linear-gradient(#d8c79c,#b89c6e); }
+
+  .overlay { position:absolute; inset:0; background:rgba(20,12,4,.8); display:none; align-items:center; justify-content:center; z-index:20; }
+  .overlay.show { display:flex; }
+  .box { background:linear-gradient(#e8d7af,#c2a878); border:3px solid var(--gold); border-radius:14px; padding:22px 26px;
+    text-align:center; max-width:380px; color:#2c2012; box-shadow:0 0 40px rgba(232,200,115,.4); }
+  .box h2 { margin:0 0 4px; font-size:24px; letter-spacing:3px; }
+  .box .grade { font-size:38px; font-weight:bold; color:#8a6d12; margin:2px 0; }
+  .box p { margin:5px 0; color:#5b4a32; font-size:13px; }
+  .box .battlelog { font-size:11px; text-align:left; background:rgba(44,32,18,.9); color:#d9c7a3; padding:8px;
+    border-radius:6px; margin:10px 0; max-height:130px; overflow-y:auto; line-height:1.4; }
+  .box .battlelog .kill,.box .battlelog .rout{color:#e2877a;} .box .battlelog .end{color:#e8c873;font-weight:bold;}
+
+  .army { position:absolute; bottom:88px; left:50%; transform:translateX(-50%); z-index:6; display:flex; gap:10px; align-items:center;
+    background:rgba(14,20,16,.82); border:2px solid #2c2012; border-radius:6px; padding:6px 12px; box-shadow:2px 2px 0 rgba(0,0,0,.5); }
+  .army .label { font-size:11px; color:#e8c873; font-family:"Courier New",monospace; }
+  .army .rem { font-size:11px; color:#b9c0a8; font-family:"Courier New",monospace; }
+  .army .unit { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .army .gm { width:34px; height:34px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:bold;
+    color:#2c2012; background:linear-gradient(#f0e2bf,#c9ad7c); border:2px solid var(--player); cursor:help; position:relative; }
+  .army .gm .tt { position:absolute; bottom:-4px; right:-4px; font-size:9px; width:15px; height:15px; border-radius:50%; background:#2c2012; color:var(--gold-lt); display:flex; align-items:center; justify-content:center; border:1px solid var(--gold); }
+  .army .fbtn { font-family:inherit; font-size:11px; color:#2c2012; border:2px solid #2c2012; background:linear-gradient(#f0e0b6,#cdae78);
+    border-radius:3px; padding:1px 6px; cursor:pointer; box-shadow:1px 1px 0 rgba(20,14,6,.5); }
+  .army .dctl { display:flex; align-items:center; gap:3px; font-size:10px; color:#e8e0d0; font-family:"Courier New",monospace; }
+  .army .dctl b { min-width:40px; text-align:center; color:#e8c873; }
+  .army .mini { width:16px; height:16px; line-height:1; font-size:12px; color:#2c2012; border:1px solid #2c2012; background:linear-gradient(#f0e0b6,#cdae78);
+    border-radius:3px; cursor:pointer; padding:0; }
+  .ttip { position:absolute; z-index:25; width:215px; padding:9px 11px; border-radius:8px; pointer-events:none; display:none;
+    background:linear-gradient(rgba(244,232,202,.98),rgba(220,200,160,.98)); border:1px solid var(--gold); box-shadow:0 4px 14px rgba(0,0,0,.4); font-size:11px; line-height:1.5; color:#2c2012; }
+  .ttip.show { display:block; }
+  .ttip h4 { margin:0 0 3px; font-size:13px; color:#6e2020; }
+  .ttip .desc { border-top:1px dashed #9c8254; margin-top:4px; padding-top:4px; font-size:10px; }
+  .ttip b { color:#8a6d12; }
+  @media (max-width:640px){ .army{ bottom:84px; gap:5px; padding:4px 8px; } .army .gm{ width:32px; height:32px; font-size:14px; } }
+
+  /* 직접 전투 마운트 */
+  .battle-mount { position:fixed; inset:0; z-index:30; display:none; background:#1a140c; }
+  .battle-mount.show { display:block; }
+  .battle-mount #bvHost { width:100%; height:100%; max-width:1100px; margin:0 auto; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="map"></canvas>
+
+  <a class="home" href="index.html">← 메뉴</a>
+  <div class="topbar">
+    <span class="tag" id="roundTag">1 라운드</span>
+    <span class="tag">아군 <b class="p" id="pCount"></b> · 적군 <b class="e" id="eCount"></b></span>
+  </div>
+
+  <div id="nodes"></div>
+  <div class="ttip" id="ttip"></div>
+  <div class="army" id="army"></div>
+
+  <div class="panel">
+    <div class="msg" id="msg">내 영지를 선택해 인접한 적 영지로 출정하라.</div>
+    <div class="btns" id="btns">
+      <button class="abtn ghost" id="passBtn">턴 종료(패스)</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="box">
+      <h2 id="bTitle"></h2><div class="grade" id="bGrade"></div><p id="bInfo"></p>
+      <div class="battlelog" id="bLog"></div>
+      <button class="abtn" id="bOk">계속</button>
+    </div>
+  </div>
+  <div class="overlay" id="endOverlay">
+    <div class="box">
+      <h2 id="endTitle"></h2><div class="grade" id="endGrade"></div><p id="endInfo"></p>
+      <button class="abtn" onclick="location.reload()">다시 시작</button>
+      <a class="abtn" href="index.html" style="text-decoration:none; display:inline-block;">메뉴로</a>
+    </div>
+  </div>
+</div>
+
+<div class="battle-mount" id="battleMount"><div id="bvHost"></div></div>
+
+<script src="src/engine.js"></script>
+<script src="src/data.js"></script>
+<script src="src/warsim.js"></script>
+<script src="src/glossary.js"></script>
+<script>
+const E = window.Engine;
+const $ = (id) => document.getElementById(id);
+
+const MAP = [
+  { id:'wirye', name:'위례성', owner:'player', minsim:60, x:12, y:70, capital:true,  adj:['ungjin','hanseong'] },
+  { id:'ungjin', name:'웅진', owner:'player', minsim:60, x:14, y:38, capital:false, adj:['wirye','hanseong'] },
+  { id:'hanseong', name:'한성', owner:'player', minsim:60, x:40, y:56, capital:false, adj:['wirye','ungjin','jolbon','gungnae'] },
+  { id:'jolbon', name:'졸본', owner:'enemy', minsim:60, x:62, y:30, capital:false, adj:['hanseong','pyongyang','gungnae'] },
+  { id:'gungnae', name:'국내성', owner:'enemy', minsim:60, x:80, y:54, capital:false, adj:['hanseong','jolbon','pyongyang'] },
+  { id:'pyongyang', name:'평양성', owner:'enemy', minsim:60, x:88, y:24, capital:true, adj:['jolbon','gungnae'] },
+];
+// 밸런스 파라미터 (test/tune.js 변형 L: 0 교착, 평균 ~32R, 민심 결합 강함)
+const GRADE_DROP = { '대승':55, '승':38, '신승':23 };
+const DEFENSE_REGAIN = 2, REGAIN_CAP = 85, CAPTURE_RESET = 68;
+// 방어 영지 민심 → 수비측 시작 사기 (민심 높을수록 잘 막음)
+const defMorale = (minsim) => Math.round(20 + minsim * 0.6);
+
+let round = 1, selected = null, targeting = false, busy = false;
+const T = (id) => MAP.find((t) => t.id === id);
+const owned = (side) => MAP.filter((t) => t.owner === side);
+const seedBase = Math.floor(Math.random() * 1e6);
+let seedTick = 0;
+
+// ── 출정군 편성(병력·진형) — 출진 시 확정, 전 출정에 공용 ──
+const FORMS = ['방진', '횡대', '종대', '쐐기'];
+const POOL_TOTAL = 100;                 // 총 병력(도트) = 10,000명
+let armyForms = ['방진', '방진', '방진', '방진'];
+let armyDots  = [25, 25, 25, 25];
+
+// ── 렌더 ───────────────────────────────────────────────
+function render() {
+  $('nodes').innerHTML = MAP.map((t) => {
+    const fill = t.owner === 'player' ? 'var(--player)' : 'var(--enemy)';
+    return `<div class="node ${t.owner} ${t.capital?'capital':''} ${selected===t.id?'selected':''}"
+      data-id="${t.id}" style="left:${t.x}%;top:${t.y}%">
+      <div class="castle"><img class="csp" src="${makeCastle(t.owner, t.capital)}" alt=""></div>
+      <div class="nname">${t.name}</div>
+      <div class="ms-track"><div class="ms-fill" style="width:${Math.max(0,t.minsim)}%;background:${fill}"></div></div>
+      <div class="ms-text">민심 ${t.minsim}</div>
+    </div>`;
+  }).join('');
+  if (targeting && selected) {
+    for (const adjId of T(selected).adj)
+      if (T(adjId).owner === 'enemy') $('nodes').querySelector(`.node[data-id="${adjId}"]`)?.classList.add('targetable');
+  }
+  $('pCount').textContent = owned('player').length;
+  $('eCount').textContent = owned('enemy').length;
+  $('roundTag').textContent = round + ' 라운드';
+}
+
+// ── 픽셀 지도 배경 ─────────────────────────────────────
+const mapCv = $('map'), mctx = mapCv.getContext('2d');
+let MW, MH, MPX = 5;
+function hashp(x,y){ let h=(x*374761393+y*668265263)>>>0; h=(h^(h>>>13))*1274126177>>>0; return ((h^(h>>>16))>>>0)/4294967296; }
+function pmtn(cx,cy,h){ cx=Math.round(cx/MPX)*MPX; cy=Math.round(cy/MPX)*MPX;
+  for(let yy=0;yy<h;yy+=MPX){ const half=h-yy; for(let xx=-half;xx<=half;xx+=MPX){ mctx.fillStyle=xx<-half*0.15?'#6a6e64':(xx>half*0.15?'#454941':'#585c53'); mctx.fillRect(cx+xx,cy-yy,MPX,MPX);} }
+  mctx.fillStyle='#dbe0e2'; mctx.fillRect(cx-MPX,cy-h+MPX,MPX*3,MPX*2); }
+function drawMap(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  MW=$('stage').clientWidth; MH=$('stage').clientHeight;
+  mapCv.width=MW*dpr; mapCv.height=MH*dpr; mctx.setTransform(dpr,0,0,dpr,0,0); mctx.imageSmoothingEnabled=false;
+  const LAND=['#5d6b3a','#67763f','#6f8046','#586833'];
+  for(let y=0;y<MH;y+=MPX)for(let x=0;x<MW;x+=MPX){ const n=hashp((x/MPX)|0,(y/MPX)|0); mctx.fillStyle=LAND[(n*4)|0]; mctx.fillRect(x,y,MPX,MPX);
+    if(n>0.93){ mctx.fillStyle='#465428'; mctx.fillRect(x,y,MPX,MPX);} }
+  // 강 (사행 밴드)
+  for(let x=0;x<MW;x+=MPX){ const cy=MH*0.62 + Math.sin(x/150)*MH*0.16 - x*0.10;
+    for(let d=-2;d<=2;d++){ const y=Math.round((cy+d*MPX)/MPX)*MPX; mctx.fillStyle=d===0?'#4d84b6':(Math.abs(d)===1?'#3f74a6':'#356a9c'); mctx.fillRect(x,y,MPX,MPX);} }
+  // 산맥 장식
+  pmtn(MW*0.30,MH*0.24,42); pmtn(MW*0.24,MH*0.28,30); pmtn(MW*0.71,MH*0.20,50); pmtn(MW*0.80,MH*0.26,34);
+  // 도로(인접 영지 연결)
+  const seen=new Set();
+  for(const t of MAP)for(const a of t.adj){ const k=[t.id,a].sort().join('-'); if(seen.has(k))continue; seen.add(k); const u=T(a);
+    const x1=t.x/100*MW, y1=t.y/100*MH, x2=u.x/100*MW, y2=u.y/100*MH, steps=Math.max(1,Math.hypot(x2-x1,y2-y1)/MPX);
+    for(let i=0;i<=steps;i++){ if(i%2)continue; const px=Math.round((x1+(x2-x1)*i/steps)/MPX)*MPX, py=Math.round((y1+(y2-y1)*i/steps)/MPX)*MPX;
+      mctx.fillStyle='rgba(0,0,0,.28)'; mctx.fillRect(px,py+MPX,MPX,MPX); mctx.fillStyle='#6b5a34'; mctx.fillRect(px,py,MPX,MPX);} }
+  // 비네트
+  const v=mctx.createRadialGradient(MW/2,MH*0.45,Math.min(MW,MH)*0.36,MW/2,MH/2,Math.max(MW,MH)*0.78);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(6,10,6,.62)'); mctx.fillStyle=v; mctx.fillRect(0,0,MW,MH);
+}
+// ── 도트 성채 스프라이트(팀/수도별 캐시 → dataURL) ────────
+const castleCache={};
+function makeCastle(team,capital){
+  const key=team+(capital?'C':''); if(castleCache[key])return castleCache[key];
+  const wall=team==='player'?'#4f7db8':'#b85454', wallD=team==='player'?'#2a4f7c':'#7c2e2e', stone='#c9bd98', stoneD='#8f8360';
+  const c=document.createElement('canvas'); c.width=16; c.height=16; const g=c.getContext('2d');
+  const P=(x,y,col)=>{ g.fillStyle=col; g.fillRect(x,y,1,1); };
+  // 본체
+  for(let y=6;y<=14;y++)for(let x=3;x<=12;x++) P(x,y, (x+y)%2? stone:stoneD);
+  // 성벽 테두리(팀색)
+  for(let x=3;x<=12;x++){ P(x,6,wall); P(x,14,wallD); }
+  for(let y=6;y<=14;y++){ P(3,y,wall); P(12,y,wallD); }
+  // 총안(크레넬)
+  for(let x=3;x<=12;x+=2) P(x,5,wall);
+  // 성문
+  P(7,12,'#2a1e10');P(8,12,'#2a1e10');P(7,13,'#2a1e10');P(8,13,'#2a1e10');P(7,14,'#3a2a16');P(8,14,'#3a2a16');
+  // 탑 깃발
+  P(8,4,'#3a2a16');P(8,3,'#3a2a16');
+  g.fillStyle=team==='player'?'#2f6db5':'#b53b3b'; g.fillRect(9,3,3,2);
+  // 수도 별
+  if(capital){ g.fillStyle='#e8c873'; P(7,1,'#e8c873');P(8,1,'#e8c873');P(6,2,'#e8c873');P(9,2,'#e8c873');P(7,2,'#f4e0a0');P(8,2,'#f4e0a0'); }
+  const url=c.toDataURL(); castleCache[key]=url; return url;
+}
+
+// ── 결과 적용 (CAMPAIGN.md 3.1) ────────────────────────
+function applyResult(attackerSide, terr, won, grade) {
+  let msg = '';
+  if (won) {
+    const drop = GRADE_DROP[grade] || 30;
+    terr.minsim -= drop;
+    msg = `${grade}! ${terr.name} 민심 −${drop}`;
+    if (terr.minsim <= 0) { terr.owner = attackerSide; terr.minsim = CAPTURE_RESET; msg += ` → ${terr.name} 함락!`; }
+  } else {
+    terr.minsim = Math.min(REGAIN_CAP, terr.minsim + DEFENSE_REGAIN);
+    msg = `방어 성공 — ${terr.name} 민심 +${DEFENSE_REGAIN}`;
+  }
+  return { msg };
+}
+
+function showOutcome(title, gradeText, goodForPlayer, info, log, after) {
+  $('bTitle').textContent = title;
+  $('bGrade').textContent = gradeText;
+  $('bGrade').style.color = goodForPlayer ? '#2f6d2f' : '#8c2f2f';
+  $('bInfo').textContent = info;
+  if (log) {
+    $('bLog').style.display = 'block';
+    $('bLog').innerHTML = log.filter((l)=>['kill','rout','end','round'].includes(l.kind))
+      .slice(-12).map((l)=>`<div class="${l.kind}">${l.msg}</div>`).join('');
+  } else { $('bLog').style.display = 'none'; }
+  $('overlay').classList.add('show');
+  $('bOk').onclick = () => { $('overlay').classList.remove('show'); after(); };
+}
+
+// ── 아군 출정 = 직접 일기토 (CAMPAIGN.md 3장) ──────────
+// 결과(생존 비율) → 전과 등급
+function gradeFromResult(r, side) {
+  const total = (r.startCount && r.startCount[side]) || 1;
+  const surv = (r.survivors && r.survivors[side]) || 0;
+  const ratio = surv / total;
+  return ratio >= 0.5 ? '대승' : ratio >= 0.25 ? '승' : '신승';
+}
+
+// ── 아군 출정 = 실전 전투(warfield) ────────────────────
+function startManualBattle(terr) {
+  busy = true; targeting = false; selected = null; render();
+  const mount = $('battleMount'); mount.classList.add('show');
+  const q = `campaign=1&auto=1&def=${terr.minsim}&name=${encodeURIComponent(terr.name)}`
+    + `&forms=${encodeURIComponent(armyForms.join(','))}&dots=${armyDots.join(',')}`;
+  $('bvHost').innerHTML = `<iframe id="wfFrame" style="width:100%;height:100%;border:0;display:block" src="warfield.html?${q}"></iframe>`;
+  const onMsg = (e) => {
+    if (!e.data || e.data.type !== 'warfield-result') return;
+    window.removeEventListener('message', onMsg);
+    mount.classList.remove('show'); $('bvHost').innerHTML = '';
+    const r = e.data, won = r.winner === 'player';
+    const grade = won ? gradeFromResult(r, 'player') : '방어 성공';
+    const ap = applyResult('player', terr, won, grade);
+    render();
+    showOutcome(`${terr.name} 공방전`, won ? grade : '방어 성공', won,
+      `실전 전투 · ${r.time}초 · 생존 ${r.survivors.player}/${r.startCount.player} · ${ap.msg}`, null,
+      () => { if (!checkEnd()) enemyTurn(); });
+  };
+  window.addEventListener('message', onMsg);
+}
+
+// ── 적 AI 출정 = 자동 전투 (CAMPAIGN.md 5장) ───────────
+function enemyTurn() {
+  const targets = new Set();
+  for (const t of owned('enemy')) for (const a of t.adj) if (T(a).owner === 'player') targets.add(a);
+  const list = [...targets].map(T);
+  if (list.length === 0) { endEnemy(); return; }
+  const target = list.sort((a,b)=>a.minsim-b.minsim)[0];
+  // 헤드리스 군세 전투(방어측=아군). 방어 영지 민심 → 아군 수비 사기 유리.
+  const war = WarSim.createWar({ rosterP: ROSTER.player, rosterE: ROSTER.enemy, fieldW: 1000, fieldH: 700 });
+  war.morale.player = defMorale(target.minsim); war.morale.enemy = 50;
+  let guard = 0; while (!war.finished && guard++ < 5000) WarSim.stepWar(war, 0.05);
+  const res = war.result;
+  const enemyWon = res.winner === 'enemy';
+  const grade = enemyWon ? gradeFromResult({ startCount: war.startCount, survivors: res.survivors }, 'enemy') : '방어 성공';
+  const ap = applyResult('enemy', target, enemyWon, grade);
+  render();
+  showOutcome(`${target.name} 침공`, enemyWon ? grade : '방어 성공', !enemyWon,
+    `적군 침공(실전) · ${res.time}초 · ${ap.msg}`, null,
+    () => { endEnemy(); });
+}
+
+function endEnemy() {
+  if (checkEnd()) return;
+  round++; selected = null; targeting = false; busy = false; render();
+  $('msg').textContent = '내 영지를 선택해 인접한 적 영지로 출정하라.';
+}
+
+// ── 승패 ───────────────────────────────────────────────
+function checkEnd() {
+  if (owned('enemy').length === 0) return endGame(true);
+  if (owned('player').length === 0) return endGame(false);
+  return false;
+}
+function endGame(win) {
+  $('endTitle').textContent = win ? '천하 통일' : '백제 멸망';
+  $('endTitle').style.color = win ? 'var(--player)' : 'var(--enemy)';
+  $('endGrade').textContent = win ? '승  리' : '패  배';
+  $('endInfo').textContent = `${round}라운드 만에 ${win ? '고구려를 정벌했다.' : '고구려에 멸망했다.'}`;
+  $('endOverlay').classList.add('show');
+  return true;
+}
+
+// ── 입력 ───────────────────────────────────────────────
+$('nodes').addEventListener('click', (e) => {
+  if (busy) return;
+  const node = e.target.closest('.node'); if (!node) return;
+  const t = T(node.dataset.id);
+  if (targeting && selected && t.owner === 'enemy' && T(selected).adj.includes(t.id)) {
+    startManualBattle(t); return;
+  }
+  if (t.owner === 'player') {
+    selected = t.id;
+    const enemyAdj = t.adj.filter((a) => T(a).owner === 'enemy');
+    targeting = enemyAdj.length > 0;
+    render();
+    $('msg').innerHTML = targeting
+      ? `<b>${t.name}</b> 선택 — 깜빡이는 적 영지를 클릭해 출정하라.`
+      : `<b>${t.name}</b>은(는) 전선이 아니다 (인접한 적 영지 없음).`;
+  }
+});
+$('passBtn').onclick = () => { if (busy) return; busy = true; selected = null; targeting = false; render(); enemyTurn(); };
+
+// ── 군세 바 + 호버 정보 ────────────────────────────────
+const G = window.GLOSSARY || { skill:{}, stratagem:{} };
+function renderArmy() {
+  const rem = POOL_TOTAL - armyDots.reduce((a, b) => a + b, 0);
+  $('army').innerHTML = '<span class="label">출정군 편성 ▸</span>' + ROSTER.player.map((g, i) =>
+    `<div class="unit">
+       <div class="gm" data-gid="${g.id}">${g.name[0]}<span class="tt">${g.troop[0]}</span></div>
+       <button class="fbtn" data-act="form" data-i="${i}">${armyForms[i]}</button>
+       <span class="dctl"><button class="mini" data-act="dec" data-i="${i}">–</button>
+         <b>${(armyDots[i] * 100).toLocaleString()}</b>
+         <button class="mini" data-act="inc" data-i="${i}">+</button></span>
+     </div>`).join('') + `<span class="rem">예비<br>${(rem * 100).toLocaleString()}</span>`;
+}
+$('army').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const i = +b.dataset.i;
+  if (b.dataset.act === 'form') armyForms[i] = FORMS[(FORMS.indexOf(armyForms[i]) + 1) % 4];
+  else if (b.dataset.act === 'inc') { if (armyDots.reduce((a, c) => a + c, 0) < POOL_TOTAL && armyDots[i] < 50) armyDots[i] += 2; }
+  else if (b.dataset.act === 'dec') { if (armyDots[i] > 4) armyDots[i] -= 2; }
+  renderArmy();
+});
+function genTip(g) {
+  let h = `<h4>${g.name} <span style="font-size:10px;color:#5b4a32">${g.troop}</span></h4>`;
+  h += `<div>무${g.might} · 통${g.command} · 지${g.intellect} · 민${g.agility} · HP ${E.maxHpOf(g)}</div>`;
+  h += `<div class="desc"><b>스킬 ${g.skill}</b><br>${G.skill[g.skill] || ''}</div>`;
+  if (g.stratagem) h += `<div class="desc"><b>책략 ${g.stratagem}</b><br>${G.stratagem[g.stratagem] || ''}</div>`;
+  return h;
+}
+function terrTip(t) {
+  const front = t.owner === 'player' && t.adj.some((a) => T(a).owner === 'enemy');
+  let h = `<h4>${t.name}${t.capital ? ' ★' : ''}</h4>`;
+  h += `<div>소유: ${t.owner === 'player' ? '백제(아군)' : '고구려(적군)'} · 민심 ${t.minsim}</div>`;
+  h += `<div class="desc">인접: ${t.adj.map((a) => T(a).name).join(', ')}</div>`;
+  if (t.owner === 'player') h += `<div style="color:${front ? '#6e2020' : '#5b4a32'}">${front ? '⚔ 전선 — 출정 가능' : '후방'}</div>`;
+  else h += `<div style="color:#6e2020">⚔ 적 영지 — 인접 시 공략 대상</div>`;
+  return h;
+}
+function showTip(html, anchor) {
+  const tip = $('ttip'); tip.innerHTML = html; tip.classList.add('show');
+  const stage = $('stage').getBoundingClientRect();
+  const r = anchor.getBoundingClientRect();
+  let left = r.left - stage.left + r.width / 2 - 107;
+  left = Math.max(6, Math.min(stage.width - 221, left));
+  let top = r.top - stage.top - tip.offsetHeight - 8;
+  if (top < 4) top = r.top - stage.top + r.height + 8;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+}
+function hideTip() { $('ttip').classList.remove('show'); }
+$('army').addEventListener('mouseover', (e) => { const m = e.target.closest('.gm'); if (!m) return; const g = ROSTER.player.find((x) => x.id === m.dataset.gid); if (g) showTip(genTip(g), m); });
+$('army').addEventListener('mouseout', (e) => { if (e.target.closest('.gm')) hideTip(); });
+$('nodes').addEventListener('mouseover', (e) => { const n = e.target.closest('.node'); if (n) showTip(terrTip(T(n.dataset.id)), n); });
+$('nodes').addEventListener('mouseout', (e) => { if (e.target.closest('.node')) hideTip(); });
+
+function init() { drawMap(); render(); renderArmy(); }
+init();
+window.addEventListener('resize', () => { drawMap(); render(); });
+</script>
+</body>
+</html>

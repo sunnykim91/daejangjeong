@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 장수 도감</title>
+<style>
+  :root { --gold:#b8860b; --gold-lt:#e8c873; --player:#7fb0e8; --enemy:#e89090; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; min-height:100%; }
+  body { background:#0d1410; color:#e8e0d0; font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif;
+    background-image:linear-gradient(#141c14, #0d130d); background-attachment:fixed; }
+  .wrap { max-width:1000px; margin:0 auto; padding:16px 16px 60px; }
+  .home { display:inline-block; text-decoration:none; font-size:13px; color:#2c2012; background:linear-gradient(#f0e0b6,#cdae78);
+    border:2px solid #2c2012; border-radius:4px; padding:6px 14px; box-shadow:2px 2px 0 rgba(20,14,6,.55); }
+  h1 { text-align:center; color:#f4ecd2; letter-spacing:8px; font-size:30px; margin:10px 0 2px; text-shadow:2px 2px 0 rgba(0,0,0,.6), 0 0 20px rgba(232,200,115,.25); }
+  .sub { text-align:center; color:#b9c0a8; font-size:13px; margin-bottom:18px; font-family:"Courier New",monospace; }
+  h2.faction { font-size:18px; letter-spacing:3px; margin:18px 0 10px; padding-left:10px; border-left:5px solid var(--gold);
+    color:#f0e6c0; text-shadow:1px 1px 0 rgba(0,0,0,.6); }
+  h2.baekje { color:var(--player); border-color:#2f6db5; }
+  h2.goguryeo { color:var(--enemy); border-color:#b53b3b; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px; }
+  .card { background:rgba(20,28,20,.72); border:2px solid #2c2012;
+    border-radius:5px; padding:12px; box-shadow:3px 3px 0 rgba(0,0,0,.45); }
+  .card.p { border-top:4px solid #2f6db5; } .card.e { border-top:4px solid #b53b3b; }
+  .head { display:flex; align-items:center; gap:10px; }
+  .medal { width:52px; height:52px; display:flex; align-items:center; justify-content:center; flex:0 0 52px; position:relative;
+    background:#0f1510; border:2px solid var(--gold); border-radius:4px; box-shadow:2px 2px 0 rgba(0,0,0,.5); }
+  .medal .portrait { width:48px; height:48px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  .card.p .medal { border-color:#2f6db5; } .card.e .medal { border-color:#b53b3b; }
+  .head .name { font-size:17px; font-weight:bold; color:#f4ecd2; }
+  .head .meta { font-size:11px; color:#b9c0a8; }
+  .stars { color:var(--gold-lt); font-size:12px; }
+  .stats { margin:10px 0 6px; }
+  .stat { display:flex; align-items:center; gap:6px; margin:3px 0; font-size:11px; }
+  .stat .lbl { width:54px; color:#b9c0a8; }
+  .stat .bar { flex:1; height:9px; background:#14100a; border:1px solid #14100a; overflow:hidden; box-shadow:inset 1px 1px 0 rgba(0,0,0,.5); }
+  .stat .fill { height:100%; }
+  .stat .num { width:26px; text-align:right; font-weight:bold; color:#e8e0d0; font-family:"Courier New",monospace; }
+  .hp { font-size:12px; color:#b9c0a8; margin:4px 0 8px; }
+  .hp b { color:#8fd66a; font-size:14px; font-family:"Courier New",monospace; }
+  .abil { font-size:11px; line-height:1.5; border-top:1px dashed #4a5a3a; padding-top:6px; margin-top:4px; color:#d8d0bc; }
+  .abil b { color:#e8c873; }
+  .counter { background:rgba(20,28,20,.72); border:2px solid #2c2012;
+    border-radius:5px; padding:14px; margin-top:20px; box-shadow:3px 3px 0 rgba(0,0,0,.45); }
+  .counter h3 { margin:0 0 8px; letter-spacing:2px; color:#f0e6c0; }
+  .tri { text-align:center; font-size:14px; line-height:2; color:#e8e0d0; }
+  .tri .strong { color:#8fd66a; font-weight:bold; } .tri .t { font-weight:bold; color:#e8c873; }
+  .troop-notes { font-size:11px; color:#b9c0a8; line-height:1.6; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="home" href="index.html">← 메뉴</a>
+  <h1>장 수 도 감</h1>
+  <div class="sub">能力 1~100 · 병종 상성 · 시그니처 스킬과 책략</div>
+  <div id="content"></div>
+
+  <div class="counter">
+    <h3>병종 상성</h3>
+    <div class="tri">
+      창병 <span class="strong">→</span> 기병 <span class="strong">→</span> 궁병 <span class="strong">→</span> 창병 &nbsp;(순환, 유리 ×1.3 / 불리 ×0.8)<br>
+      <span class="t">보병</span>은 모든 병종에 보통(×1.0) — 안전한 만능 픽
+    </div>
+    <div class="troop-notes" id="troopNotes"></div>
+  </div>
+</div>
+
+<script src="src/engine.js"></script>
+<script src="src/data.js"></script>
+<script src="src/glossary.js"></script>
+<script>
+const STAT_COLOR = { might:'#c0503a', command:'#4a86d0', intellect:'#9a6ac8', agility:'#8fbf5a' };
+const STAT_LABEL = { might:'무력', command:'통솔', intellect:'지력', agility:'민첩' };
+
+// ── 도트 장수 흉상 초상 (세력·병종별 생성) ────────────────
+const bustCache = {};
+function makeBust(side, troop){
+  const key = side + troop; if (bustCache[key]) return bustCache[key];
+  const main = side==='p'?'#3f78c0':'#c04848', light = side==='p'?'#7fb0e8':'#e89090', dark = side==='p'?'#1e4470':'#6e2424';
+  const o='#120d08', sk='#e7c79c', skd='#c99f6e', metal='#cdd3da', wood='#7c5a2e';
+  const c=document.createElement('canvas'); c.width=16; c.height=16; const g=c.getContext('2d');
+  const P=(x,y,col)=>{ g.fillStyle=col; g.fillRect(x,y,1,1); };
+  const box=(x0,y0,x1,y1,col)=>{ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)P(x,y,col); };
+  box(2,11,13,15,dark); box(3,12,12,15,main); box(3,12,6,13,light);   // 어깨/갑옷
+  box(6,10,9,11,skd);                                                  // 목
+  box(5,5,10,10,sk); box(9,6,10,10,skd);                              // 얼굴+음영
+  P(6,7,o); P(9,7,o);                                                  // 눈
+  box(4,3,11,5,dark); box(5,3,10,4,main); box(4,5,11,5,dark);         // 투구
+  P(7,1,light); P(8,1,light); P(7,2,main); P(8,2,main);              // 볏
+  if (troop==='창병'){ for(let y=2;y<=14;y++)P(13,y,wood); P(13,1,metal); }
+  else if (troop==='궁병'){ P(13,4,wood);P(14,5,wood);P(14,6,wood);P(14,7,wood);P(14,8,wood);P(13,9,wood); }
+  else if (troop==='기병'){ box(10,14,14,15,'#2a1e12'); box(11,13,13,13,'#3a2a16'); }
+  else { box(12,7,14,12,metal); box(12,7,13,11,'#aab2bb'); }          // 보병 방패
+  return bustCache[key] = c.toDataURL();
+}
+
+function statRow(key, val) {
+  return `<div class="stat"><span class="lbl">${STAT_LABEL[key]}</span>
+    <span class="bar"><span class="fill" style="width:${val}%;background:${STAT_COLOR[key]}"></span></span>
+    <span class="num">${val}</span></div>`;
+}
+function card(g, side) {
+  const hp = Engine.maxHpOf(g);
+  const stars = '★'.repeat(g.rarity) + '☆'.repeat(5 - g.rarity);
+  let abil = `<div class="abil"><b>스킬 · ${g.skill}</b><br>${GLOSSARY.skill[g.skill] || ''}</div>`;
+  abil += g.stratagem
+    ? `<div class="abil"><b>책략 · ${g.stratagem}</b><br>${GLOSSARY.stratagem[g.stratagem] || ''}</div>`
+    : `<div class="abil" style="color:#8a7a5a">책략 없음 (무장형)</div>`;
+  return `<div class="card ${side}">
+    <div class="head">
+      <div class="medal"><img class="portrait" src="${makeBust(side, g.troop)}" alt=""></div>
+      <div><div class="name">${g.name}</div>
+        <div class="meta">${g.faction} · ${g.troop} · <span class="stars">${stars}</span></div></div>
+    </div>
+    <div class="stats">${statRow('might',g.might)}${statRow('command',g.command)}${statRow('intellect',g.intellect)}${statRow('agility',g.agility)}</div>
+    <div class="hp">최대 체력 <b>${hp}</b> <span style="color:#8a7a5a">(${g.troop} 기본 × 통솔 보정)</span></div>
+    ${abil}</div>`;
+}
+
+let html = `<h2 class="faction baekje">백제 (아군)</h2><div class="grid">`;
+html += ROSTER.player.map((g) => card(g, 'p')).join('');
+html += `</div><h2 class="faction goguryeo">고구려 (적군)</h2><div class="grid">`;
+html += ROSTER.enemy.map((g) => card(g, 'e')).join('');
+html += `</div>`;
+document.getElementById('content').innerHTML = html;
+
+document.getElementById('troopNotes').innerHTML =
+  Object.entries(GLOSSARY.troop).map(([k, v]) => `<div><b>${k}</b> — ${v}</div>`).join('');
+</script>
+</body>
+</html>

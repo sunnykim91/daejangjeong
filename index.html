@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 (大長征)</title>
+<style>
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:#0b1018; overflow:hidden; }
+  body { color:#e8e0d0; font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; user-select:none; }
+  .stage { position:relative; width:100vw; height:100vh; max-width:1100px; margin:0 auto; overflow:hidden; }
+  canvas#scene { position:absolute; inset:0; width:100%; height:100%; display:block;
+    image-rendering:pixelated; image-rendering:crisp-edges; }
+  .ui { position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .title { text-align:center; }
+  .title .han { font-size:80px; letter-spacing:16px; margin:0; color:#f4ecd2;
+    text-shadow:0 3px 0 #7a2e12, 4px 4px 0 rgba(0,0,0,.55), 0 0 26px rgba(232,200,115,.35); }
+  .title .sub { font-size:15px; letter-spacing:9px; color:#e8c873; margin-top:6px;
+    font-family:"Courier New",monospace; text-shadow:2px 2px 0 rgba(0,0,0,.6); }
+  .title .ko { font-size:12px; color:#b9c0a8; margin-top:12px; letter-spacing:3px; text-shadow:1px 1px 0 rgba(0,0,0,.6); }
+  .menu { margin-top:42px; display:flex; flex-direction:column; gap:12px; width:270px; }
+  .menu a { display:block; text-align:center; text-decoration:none; padding:14px; border-radius:4px; font-size:18px; letter-spacing:3px;
+    color:#2c2012; border:2px solid #2c2012; background:linear-gradient(#f0e0b6,#cdae78);
+    box-shadow:3px 3px 0 rgba(20,14,6,.55); transition:transform .08s, box-shadow .08s, background .15s; }
+  .menu a:hover { background:linear-gradient(#f7ecc8,#d8bb86); transform:translate(-1px,-1px); box-shadow:4px 4px 0 rgba(20,14,6,.55); }
+  .menu a:active { transform:translate(2px,2px); box-shadow:1px 1px 0 rgba(20,14,6,.55); }
+  .menu a small { display:block; font-size:11px; letter-spacing:1px; color:#6b5436; margin-top:3px; }
+  .menu a.main { background:linear-gradient(#e8c873,#b8860b); border-color:#5c4410; color:#1a1410; }
+  .menu a.main:hover { background:linear-gradient(#f2d98c,#c8962a); }
+  .foot { position:absolute; bottom:14px; left:0; right:0; z-index:2; text-align:center;
+    font-size:11px; color:#8a9078; letter-spacing:2px; font-family:"Courier New",monospace; text-shadow:1px 1px 0 rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="scene"></canvas>
+  <div class="ui">
+    <div class="title">
+      <h1 class="han">大 長 征</h1>
+      <div class="sub">DAE JANG JEONG</div>
+      <div class="ko">삼국 쟁패 · 실시간 군세 전략</div>
+    </div>
+    <div class="menu">
+      <a class="main" href="total.html">총 력 전<small>토탈맵 — 장수를 이끌고 실시간으로 천하를 정벌 (삼국지 RTS)</small></a>
+      <a href="warfield.html">실전 전투<small>단일 회전 — 진형·병력 짜고 부딪히는 실시간 전투</small></a>
+      <a href="campaign.html">영 지 전<small>지도 정복 — 출정하면 실전 전투로</small></a>
+      <a href="codex.html">장수 도감<small>능력치 · 병종 상성 · 스킬 해설</small></a>
+    </div>
+  </div>
+  <div class="foot">백제 vs 고구려 · v0 MVP</div>
+</div>
+<script>
+const cv = document.getElementById('scene'), ctx = cv.getContext('2d'), stage = document.getElementById('stage');
+let W, H, dpr, PX = 4;
+function hash(x,y){ let h=(x*374761393+y*668265263)>>>0; h=(h^(h>>>13))*1274126177>>>0; return ((h^(h>>>16))>>>0)/4294967296; }
+// 작은 도트 병사(정면) — 팔레트만 팀별
+const BODY=[
+  "..oooo..",".oAAAAo.",".osssso.",".oAAAAo.","oaAAAAao",".oAAAAo.",".odddo..",".oA..Ao.","..o..o.."
+];
+function drawUnit(x,y,main,light,dark,sc){
+  const PAL={o:'#120d08',s:'#e7c79c',A:main,a:light,d:dark};
+  for(let r=0;r<BODY.length;r++)for(let k=0;k<8;k++){const ch=BODY[r][k]; if(ch!=='.'){ctx.fillStyle=PAL[ch]; ctx.fillRect(x+k*sc,y+r*sc,sc,sc);}}
+}
+function drawBanner(x,y,col,h){
+  ctx.fillStyle='#3a2a16'; ctx.fillRect(x,y-h,PX,h);           // 깃대
+  ctx.fillStyle=col; ctx.fillRect(x+PX,y-h,PX*4,PX*3);          // 깃발
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.fillRect(x+PX,y-h+PX*2,PX*4,PX);
+}
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  W=stage.clientWidth; H=stage.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.imageSmoothingEnabled=false; draw();
+}
+function draw(){
+  // 새벽 하늘 — 밴드 그라데이션(도트)
+  const sky=['#20304e','#2c4260','#3d5670','#5a6f7e','#8a7d6a','#b8895a','#d69a58'];
+  const horizon=Math.round(H*0.60);
+  for(let y=0;y<horizon;y+=PX){ const t=y/horizon; ctx.fillStyle=sky[Math.min(sky.length-1,(t*sky.length)|0)]; ctx.fillRect(0,y,W,PX); }
+  // 태양 디스크
+  const sx=Math.round(W*0.5/PX)*PX, sy=Math.round(H*0.30/PX)*PX, sr=10*PX;
+  ctx.fillStyle='#f0c26a';
+  for(let a=0;a<64;a++){} // (도트 원)
+  for(let yy=-sr;yy<=sr;yy+=PX)for(let xx=-sr;xx<=sr;xx+=PX){ if(xx*xx+yy*yy<=sr*sr){ ctx.fillRect(sx+xx,sy+yy,PX,PX);} }
+  ctx.fillStyle='rgba(240,200,120,.18)';
+  for(let yy=-sr*1.6;yy<=sr*1.6;yy+=PX)for(let xx=-sr*1.6;xx<=sr*1.6;xx+=PX){ const d=xx*xx+yy*yy; if(d>sr*sr&&d<=sr*sr*2.56){ ctx.fillRect(sx+xx,sy+yy,PX,PX);} }
+  // 원산(먼 산) — 실루엣 2겹
+  function ridge(base,amp,step,col){ ctx.fillStyle=col;
+    for(let x=0;x<W;x+=PX){ const n=hash((x/step)|0,base)*0.5+hash((x/(step*2))|0,base*3)*0.5;
+      const top=base-amp*n|0; for(let y=(Math.round(top/PX)*PX);y<horizon;y+=PX) ctx.fillRect(x,y,PX,PX); } }
+  ridge(Math.round(H*0.44), H*0.14, 26, '#2b3242');
+  ridge(Math.round(H*0.52), H*0.10, 18, '#39414e');
+  // 지면(잔디 능선) — 도트 타일
+  const GRASS=['#4c5a2f','#57662f','#5e6d38','#465428'];
+  for(let y=horizon;y<H;y+=PX)for(let x=0;x<W;x+=PX){ const n=hash((x/PX)|0,(y/PX)|0); ctx.fillStyle=GRASS[(n*4)|0]; ctx.fillRect(x,y,PX,PX);
+    if(n>0.93){ ctx.fillStyle='#3a4a20'; ctx.fillRect(x,y,PX,PX);} }
+  // 능선 하이라이트
+  ctx.fillStyle='rgba(150,170,90,.25)'; ctx.fillRect(0,horizon,W,PX);
+  // 양군 대치 — 능선 위 도트 병사 줄
+  const rowY=horizon-9*PX; const sc=PX;
+  // 백제(청) 좌측 언덕
+  for(let i=0;i<7;i++){ const x=Math.round((W*0.10+i*22)); const yj=(hash(i,7)<.5?0:PX);
+    drawUnit(x, rowY+yj, '#3f78c0','#7fb0e8','#1e4470', sc); }
+  drawBanner(Math.round(W*0.10-14), rowY+9*PX, '#2f6db5', 16*PX);
+  // 고구려(적) 우측 언덕
+  for(let i=0;i<7;i++){ const x=Math.round((W*0.62+i*22)); const yj=(hash(i,3)<.5?0:PX);
+    drawUnit(x, rowY+yj, '#c04848','#e89090','#6e2424', sc); }
+  drawBanner(Math.round(W*0.62+7*22+6), rowY+9*PX, '#b53b3b', 16*PX);
+  // 전경 비네트(하단 어둡게)
+  const g=ctx.createLinearGradient(0,H*0.5,0,H); g.addColorStop(0,'rgba(8,10,8,0)'); g.addColorStop(1,'rgba(8,10,8,.55)');
+  ctx.fillStyle=g; ctx.fillRect(0,H*0.5,W,H*0.5);
+  const v=ctx.createRadialGradient(W/2,H*0.42,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(6,8,12,.6)'); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+}
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>

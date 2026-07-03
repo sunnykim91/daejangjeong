@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 실전 전투</title>
+<style>
+  :root { --gold:#b8860b; --gold-lt:#e8c873; --player:#2f6db5; --enemy:#b53b3b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:#0e1410; overflow:hidden; }
+  body { font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; color:#e8e0d0; user-select:none; }
+  .stage { position:relative; width:100vw; height:100vh; max-width:1100px; margin:0 auto; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab;
+    image-rendering:pixelated; image-rendering:crisp-edges; }
+  canvas.dragging { cursor:grabbing; }
+
+  .home { position:absolute; top:10px; left:12px; z-index:7; text-decoration:none; font-size:12px; color:#2c2012;
+    background:linear-gradient(#e8d7af,#c9ad7c); border:1px solid var(--gold); border-radius:12px; padding:5px 12px; }
+
+  .hud { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:6; display:flex; gap:18px; align-items:center;
+    background:rgba(14,20,16,.7); border:1px solid #3a4a3a; border-radius:12px; padding:6px 16px; backdrop-filter:blur(2px); }
+  .side { text-align:center; min-width:120px; }
+  .side .nm { font-size:12px; letter-spacing:1px; } .side.p .nm{ color:#7fb0e8; } .side.e .nm{ color:#e89090; }
+  .side .cnt { font-size:18px; font-weight:bold; font-family:"Courier New",monospace; letter-spacing:1px; }
+  .bar { height:6px; border-radius:3px; background:#000; overflow:hidden; margin-top:3px; }
+  .bar i { display:block; height:100%; transition:width .2s; }
+  .vs { font-size:14px; color:var(--gold-lt); }
+
+  .panel { position:absolute; bottom:0; left:0; right:0; z-index:6; background:linear-gradient(rgba(20,28,20,0),rgba(14,20,16,.92));
+    padding:14px 12px 16px; text-align:center; }
+  .panel .tip { font-size:13px; color:#b8c0a8; margin-bottom:10px; }
+  .panel .tip b { color:var(--gold-lt); }
+  .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .btn { padding:9px 16px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:14px; color:#2c2012;
+    border:2px solid #2c2012; background:linear-gradient(#f0e0b6,#cdae78); box-shadow:2px 2px 0 rgba(20,14,6,.55); }
+  .btn:hover { background:linear-gradient(#f7ecc8,#d8bb86); transform:translate(-1px,-1px); box-shadow:3px 3px 0 rgba(20,14,6,.55); }
+  .btn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(20,14,6,.55); }
+  .btn.sel { background:linear-gradient(#e8c873,#b8860b); border-color:#7a5a12; }
+  .btn.go { font-size:16px; letter-spacing:3px; padding:11px 28px; }
+  .speed { position:absolute; bottom:14px; right:14px; z-index:7; display:none; gap:6px; }
+  .speed.show { display:flex; }
+  .speed .btn { padding:8px 12px; }
+
+  .overlay { position:absolute; inset:0; background:rgba(8,12,8,.82); display:none; align-items:center; justify-content:center; z-index:20; }
+  .overlay.show { display:flex; }
+  .box { background:linear-gradient(#e8d7af,#c2a878); border:3px solid var(--gold); border-radius:14px; padding:24px 30px;
+    text-align:center; max-width:340px; color:#2c2012; box-shadow:0 0 40px rgba(232,200,115,.4); }
+  .box h2 { margin:0; font-size:30px; letter-spacing:6px; }
+  .box p { margin:8px 0; color:#5b4a32; font-size:14px; }
+  .box .row { margin-top:14px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="cv"></canvas>
+  <a class="home" href="index.html">← 메뉴</a>
+
+  <div class="hud" id="hud" style="display:none">
+    <div class="side e"><div class="nm">고구려(적)</div><div class="cnt" id="eCnt"></div>
+      <div class="bar"><i id="eBar" style="background:linear-gradient(90deg,#e89090,#b53b3b)"></i></div></div>
+    <div class="vs">⚔</div>
+    <div class="side p"><div class="nm">백제(아군)</div><div class="cnt" id="pCnt"></div>
+      <div class="bar"><i id="pBar" style="background:linear-gradient(90deg,#7fb0e8,#2f6db5)"></i></div></div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="tip" id="tip"><b>진형과 병력을 짜라.</b> 부대를 클릭/드래그해 선택·배치하고, 진형과 <b>병력</b>을 정하라. (도트 1 = 병사 100)</div>
+    <div class="row" id="formRow">
+      <button class="btn sel" data-f="방진">방진</button>
+      <button class="btn" data-f="횡대">횡대</button>
+      <button class="btn" data-f="종대">종대</button>
+      <button class="btn" data-f="쐐기">쐐기</button>
+    </div>
+    <div class="row" id="troopRow" style="margin-top:8px; align-items:center; gap:10px">
+      <button class="btn" id="troopMinus">– 병력</button>
+      <span id="troopLabel" style="min-width:120px; font-family:'Courier New',monospace; color:var(--gold-lt)">병력 2,500</span>
+      <button class="btn" id="troopPlus">병력 +</button>
+      <span id="poolLabel" style="font-size:12px; color:#b8c0a8">예비 0</span>
+    </div>
+    <div class="row" style="margin-top:8px"><button class="btn go" id="startBtn">⚔ 출 전</button></div>
+  </div>
+
+  <div class="speed" id="speed">
+    <button class="btn" id="speedBtn">▶ 1x</button>
+    <button class="btn" id="pauseBtn">⏸</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="box">
+      <h2 id="rTitle"></h2>
+      <p id="rInfo"></p>
+      <div class="row" id="ovRow">
+        <button class="btn" onclick="location.reload()">다시</button>
+        <a class="btn" href="index.html" style="text-decoration:none">메뉴</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="src/engine.js"></script>
+<script src="src/data.js"></script>
+<script src="src/warsim.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const stage = $('stage');
+// 영지전 연동 모드: ?campaign=1&def=<민심>&name=<영지명>&auto=1&forms=..&dots=..
+const CQ = new URLSearchParams(location.search);
+const CAMPAIGN = CQ.get('campaign') === '1';
+const CDEF = parseInt(CQ.get('def'), 10) || 60;
+const CNAME = CQ.get('name') ? decodeURIComponent(CQ.get('name')) : '';
+const CAUTO = CAMPAIGN && CQ.get('auto') === '1';        // 셋업 생략, 즉시 개전
+const CFORMS = CQ.get('forms') ? decodeURIComponent(CQ.get('forms')).split(',') : null;
+const CDOTS = CQ.get('dots') ? CQ.get('dots').split(',').map((n) => parseInt(n, 10)) : null;
+let W, H, dpr;
+let war, state = 'setup', speed = 1, paused = false, last = 0;
+let drag = null, selectedSquad = null, selIdx = 0;
+const FORMS = ['방진', '횡대', '종대', '쐐기'];
+let playerForms = ['방진', '횡대', '쐐기', '방진'];
+const randForm = () => FORMS[Math.floor(Math.random() * 4)];
+
+// ── 병력 배정 ── 도트 1개 = 병사 100명. 부대별 병력을 배정(재분배)한다.
+const SOLDIERS_PER_DOT = 100;
+const POOL_TOTAL = 100;            // 아군 총 병력(도트) = 10,000명
+const DOT_STEP = 2, DOT_MIN = 4, DOT_MAX = 50;
+let playerDots = [25, 25, 25, 25]; // 부대별 배정 병력(도트)
+let enemyDots  = [25, 25, 25, 25];
+// 영지전에서 미리 확정된 편성(병력·진형) 반영
+if (CFORMS && CFORMS.length === 4) playerForms = CFORMS.slice();
+if (CDOTS && CDOTS.length === 4) playerDots = CDOTS.map((n) => Math.max(4, Math.min(50, n || 25)));
+const troopsOf = (dots) => (dots * SOLDIERS_PER_DOT).toLocaleString();
+const usedDots = () => playerDots.reduce((a, b) => a + b, 0);
+
+const COL = {
+  player: { 보병:'#3f78c0', 창병:'#4a86d0', 기병:'#5a94e0', 궁병:'#6fa0e0', line:'#1e4470' },
+  enemy:  { 보병:'#c04848', 창병:'#cf5454', 기병:'#df6060', 궁병:'#e07070', line:'#6e2424' },
+};
+
+// 색 보정 헬퍼
+function _rgb(hex){ const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function lighten(hex,f){ const [r,g,b]=_rgb(hex); return `rgb(${r+(255-r)*f|0},${g+(255-g)*f|0},${b+(255-b)*f|0})`; }
+function darken(hex,f){ const [r,g,b]=_rgb(hex); return `rgb(${r*(1-f)|0},${g*(1-f)|0},${b*(1-f)|0})`; }
+
+// ── 픽셀 타일 전장(오프스크린 1회 렌더 후 blit) ──────────
+const bgCv = document.createElement('canvas'); const bgx = bgCv.getContext('2d');
+let vgrad = null;
+const PX = 5;                              // 도트 한 칸(화면px)
+function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function hash2(x,y){ let h=(x*374761393+y*668265263)>>>0; h=(h^(h>>>13))*1274126177>>>0; return ((h^(h>>>16))>>>0)/4294967296; }
+// 팔레트(제한 색 — 레트로)
+const GRASS=['#5a6b34','#65763c','#6f8043','#586a33'];
+const HILL =['#7c8a44','#889650','#93a05a'];
+const FOREST=['#2c4a24','#356029','#22401d'];
+const RIVER=['#3f74a6','#4d84b6','#356a9c'];
+function buildScenery(){
+  const v = ctx.createRadialGradient(W/2,H*0.46,Math.min(W,H)*0.32, W/2,H*0.5,Math.max(W,H)*0.74);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(.7,'rgba(0,0,0,.12)'); v.addColorStop(1,'rgba(8,10,6,.5)'); vgrad = v;
+}
+function zoneAt(x,y){
+  for (const z of war.terrain){
+    if (z.shape==='circle'){ if ((x-z.x)**2+(y-z.y)**2 <= z.r*z.r) return z.type; }
+    else if (x>=z.x0&&x<=z.x1&&y>=z.y0&&y<=z.y1) return z.type;
+  } return null;
+}
+function renderStaticBg(){
+  bgCv.width=W*dpr; bgCv.height=H*dpr; bgx.setTransform(dpr,0,0,dpr,0,0);
+  const c = bgx; c.imageSmoothingEnabled=false;
+  // 도트 잔디밭 + 지형 타일 (외부 이미지 없이 절차 생성)
+  for (let y=0;y<H;y+=PX) for (let x=0;x<W;x+=PX){
+    const gx=(x/PX)|0, gy=(y/PX)|0, n=hash2(gx,gy);
+    const zone = zoneAt(x+PX/2, y+PX/2);
+    let pal = GRASS, col;
+    if (zone==='언덕') pal=HILL; else if (zone==='숲') pal=FOREST; else if (zone==='하천') pal=RIVER;
+    col = pal[(n*pal.length)|0];
+    c.fillStyle=col; c.fillRect(x,y,PX,PX);
+    // 디테일: 잔디 포기/물결/나무
+    if (zone==='하천'){ if (((gx+gy)&3)===0 && n>.5){ c.fillStyle='#7fb0d8'; c.fillRect(x,y,PX,PX); } }
+    else if (zone==='숲'){ if (n>.82){ c.fillStyle='#173a17'; c.fillRect(x,y,PX,PX); c.fillStyle='#3f7030'; c.fillRect(x,y,PX,PX-1); } }
+    else { if (n>.9){ c.fillStyle=zone==='언덕'?'#6b7a3a':'#47592b'; c.fillRect(x,y,PX,PX); } else if (n<.06){ c.fillStyle='#7a8a4a'; c.fillRect(x,y,PX,1); } }
+  }
+  // 진영 틴트(하단=아군 청 / 상단=적 적)
+  c.globalAlpha=.10; c.fillStyle='#2f6db5'; c.fillRect(0,H*.5,W,H*.5); c.fillStyle='#b53b3b'; c.fillRect(0,0,W,H*.5); c.globalAlpha=1;
+  // 지형 굵은 외곽선 + 라벨(도트풍)
+  for (const z of war.terrain){
+    const lx=z.shape==='circle'?z.x:(z.x0+z.x1)/2, ly=z.shape==='circle'?z.y:(z.y0+z.y1)/2;
+    const lab={'언덕':'⛰ 언덕','숲':'🌲 숲','하천':'🌊 하천'}[z.type]||z.type;
+    c.textAlign='center'; c.textBaseline='middle';
+    c.font='bold 12px "Courier New",monospace';
+    c.fillStyle='rgba(0,0,0,.55)'; c.fillText(lab,lx+1,ly+1); c.fillStyle='#f0e6c0'; c.fillText(lab,lx,ly);
+  }
+  // 중앙 교전선 — 도트 대시
+  c.fillStyle='rgba(20,26,14,.4)';
+  for (let x=0;x<W;x+=PX*2) c.fillRect(x, Math.round(H/2/PX)*PX, PX, PX);
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = stage.clientWidth; H = stage.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;       // 도트 크리스프
+  buildScenery();
+  if (war) renderStaticBg();
+}
+
+let enemyForms = [randForm(), randForm(), randForm(), randForm()];
+function newWar(preserve) {
+  const centers = preserve && war ? war.squads.map((s) => ({ cx: s.cx, cy: s.cy })) : null;
+  if (!preserve) enemyForms = [randForm(), randForm(), randForm(), randForm()];
+  war = WarSim.createWar({ rosterP: ROSTER.player, rosterE: ROSTER.enemy, fieldW: W, fieldH: H,
+    troops: { player: playerDots.slice(), enemy: enemyDots.slice() },
+    forms: { player: playerForms.slice(), enemy: enemyForms } });
+  if (centers) war.squads.forEach((s, idx) => { if (centers[idx]) WarSim.reflowSquad(s, centers[idx].cx, centers[idx].cy, s.form); });
+  if (CAMPAIGN) { war.morale.enemy = Math.min(92, 20 + CDEF * 0.6); war.morale.player = 60; }  // 방어 영지 민심 → 수비측(적) 사기
+  const players = war.squads.filter((s) => s.team === 'player');
+  selectedSquad = players[Math.min(selIdx, players.length - 1)] || players[0];
+  fx = [];
+  renderStaticBg();
+  syncFormButtons();
+  refreshTroopUI();
+}
+// 선택 부대의 병력을 delta(도트)만큼 재배정(풀 한도 내). 부대 재생성.
+function assignTroop(delta) {
+  if (state !== 'setup' || !selectedSquad) return;
+  const i = selIdx;
+  let next = playerDots[i] + delta;
+  next = Math.max(DOT_MIN, Math.min(DOT_MAX, next));
+  if (delta > 0 && usedDots() - playerDots[i] + next > POOL_TOTAL) {  // 풀 초과 방지
+    next = POOL_TOTAL - (usedDots() - playerDots[i]);
+    next = Math.max(DOT_MIN, next);
+  }
+  if (next === playerDots[i]) return;
+  playerDots[i] = next;
+  newWar(true);
+  render();
+}
+function refreshTroopUI() {
+  if (!selectedSquad) return;
+  const dots = playerDots[selIdx];
+  $('troopLabel').textContent = `병력 ${troopsOf(dots)}`;
+  const rem = POOL_TOTAL - usedDots();
+  $('poolLabel').textContent = `예비 ${troopsOf(rem)}`;
+  $('troopPlus').disabled = rem <= 0 || dots >= DOT_MAX;
+  $('troopMinus').disabled = dots <= DOT_MIN;
+}
+function syncFormButtons() {
+  const f = selectedSquad ? selectedSquad.form : '방진';
+  document.querySelectorAll('#formRow .btn').forEach((x) => x.classList.toggle('sel', x.dataset.f === f));
+}
+
+// ── 파티클(먼지/피/링) — 렌더 레이어, 로직 불변 ──────────
+let fx = [];
+function stepFx(dt){
+  for (const p of fx){ p.ttl-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.9; p.vy*=.9; if(p.g) p.vy+=p.g*dt; }
+  if (fx.length) fx = fx.filter((p)=>p.ttl>0);
+  if (fx.length>640) fx.splice(0, fx.length-640);
+  // 전사 파열 + 이동 먼지 (병사 상태 diff)
+  for (const s of war.soldiers){
+    if (s._tone===undefined) s._tone=(s.rt*913)%1;
+    const gone = !s.alive || s.deserted;
+    if (s._wasAlive && gone){
+      const ox=s._lx??s.x, oy=s._ly??s.y, n=s.gen?16:6;
+      for (let i=0;i<n;i++){ const a=Math.random()*7, sp=10+Math.random()*(s.gen?42:26);
+        fx.push({ x:ox, y:oy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-6, g:60, ttl:.35+Math.random()*.3, life:.65, type:'blood', r:(s.gen?2.2:1.3)+Math.random()*.8 }); }
+      fx.push({ x:ox, y:oy, vx:0, vy:0, ttl:.42, life:.42, type:'ring', r:s.gen?11:5, rmax:s.gen?30:15 });
+    }
+    if (!gone){
+      if (s._px!==undefined){
+        const mvx=s.x-s._px, mvy=s.y-s._py;
+        if ((mvx*mvx+mvy*mvy)>0.03 && Math.random()<((s.troop==='기병'||s.gen)?.16:.03)){
+          fx.push({ x:s.x-mvx*2, y:s.y+2, vx:(Math.random()-.5)*7, vy:5+Math.random()*7, ttl:.4+Math.random()*.35, life:.75, type:'dust', r:(s.gen?3:1.7)+Math.random()*1.2 }); }
+      }
+      s._px=s.x; s._py=s.y; s._lx=s.x; s._ly=s.y;
+    }
+    s._wasAlive = !gone;
+  }
+  // 타격 시 피 튐 (새 flash)
+  for (const f of war.flashes){ if (f._e || f.ttl<0.108) continue; f._e=1;
+    for (let i=0;i<3;i++){ const a=Math.random()*7, sp=8+Math.random()*22;
+      fx.push({ x:f.x, y:f.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-4, g:50, ttl:.22+Math.random()*.2, life:.4, type:'blood', r:.8+Math.random()*.9 }); }
+  }
+}
+function drawFx(){
+  for (const p of fx){ const k=Math.max(0,p.ttl/p.life);
+    if (p.type==='dust'){ ctx.globalAlpha=.32*k; ctx.fillStyle='#c9b787'; const r=Math.max(1,(p.r*(1.5-.5*k))|0); ctx.fillRect((p.x-r)|0,(p.y-r)|0,r*2,r*2); }
+    else if (p.type==='blood'){ ctx.globalAlpha=.78*k; ctx.fillStyle='#7d271f'; const r=Math.max(1,p.r|0); ctx.fillRect((p.x-r)|0,(p.y-r)|0,r*2,r*2); }
+    else if (p.type==='ring'){ const t=1-k, rr=(p.r+(p.rmax-p.r)*t)|0; ctx.globalAlpha=.5*k; ctx.strokeStyle='#6b5233'; ctx.lineWidth=2; ctx.strokeRect((p.x-rr)|0,(p.y-rr)|0,rr*2,rr*2); }
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── 도트 유닛 스프라이트 (절차 생성 · 팀+병종별 캐시) ──────
+const BODY=[
+  "..oooo..",
+  ".oAAAAo.",
+  ".osssso.",
+  ".osssso.",
+  ".oAAAAo.",
+  "oaAAAAao",
+  ".oAAAAo.",
+  ".odddo..",
+  ".oA..Ao.",
+  ".oo..oo.",
+  "..o..o.."
+];
+const spriteCache={};
+function makeUnitSprite(team,troop){
+  const c=COL[team], main=c[troop]||c['보병'], light=lighten(main,.42), dark=darken(main,.5);
+  const PAL={o:'#120d08',s:'#e7c79c',w:'#7c5a2e',m:'#cdd3da',H:'#aab2bb',A:main,a:light,d:dark};
+  const AW=10, AH=16, ox=1, oy=2;
+  const cnv=document.createElement('canvas'); cnv.width=AW; cnv.height=AH;
+  const g=cnv.getContext('2d'); const put=(x,y,col)=>{ g.fillStyle=col; g.fillRect(x,y,1,1); };
+  if (troop==='기병'){ const hd=darken(main,.62);
+    for (let x=1;x<=8;x++){ put(x,oy+9,hd); put(x,oy+10,hd); }
+    put(0,oy+9,hd); put(9,oy+9,hd); put(9,oy+8,hd);
+    put(2,oy+11,'#0e0a06'); put(4,oy+11,'#0e0a06'); put(5,oy+11,'#0e0a06'); put(7,oy+11,'#0e0a06'); }
+  const yoff = troop==='기병'? -2 : 0;
+  for (let r=0;r<BODY.length;r++){ const row=BODY[r];
+    for (let k=0;k<8;k++){ const ch=row[k]; if (ch!=='.') put(ox+k, oy+yoff+r, PAL[ch]||'#000'); } }
+  if (troop==='창병'){ put(ox+8,oy+0,PAL.m); for (let y=oy+1;y<=oy+9;y++) put(ox+8,y,PAL.w); }
+  else if (troop==='궁병'){ for (let y=oy+2;y<=oy+7;y++) put(ox+8,y,PAL.w); put(ox+7,oy+2,PAL.w); put(ox+7,oy+7,PAL.w); }
+  else if (troop==='보병'){ for (let y=oy+4;y<=oy+8;y++){ put(0,y,PAL.H); put(1,y,darken('#aab2bb',.28)); } }
+  return cnv;
+}
+// 장수 — 정교한 대형 도트(금관 볏·견갑·망토·가슴 엠블럼)
+function makeGenSprite(team){
+  const c=COL[team], main=c['기병'], light=lighten(main,.5), dark=darken(main,.45), darker=darken(main,.64);
+  const O='#0f0b06', SK='#e7c79c', SKD='#c99f6e', G='#e8c873', GD='#b8860b';
+  const AW=16, AH=18, cnv=document.createElement('canvas'); cnv.width=AW; cnv.height=AH;
+  const x=cnv.getContext('2d'); const P=(a,b,col)=>{ x.fillStyle=col; x.fillRect(a,b,1,1); };
+  const box=(x0,y0,x1,y1,col)=>{ for(let b=y0;b<=y1;b++)for(let a=x0;a<=x1;a++)P(a,b,col); };
+  box(7,0,8,1,G); P(6,1,GD); P(9,1,GD); P(7,2,GD); P(8,2,GD);          // 볏(plume)
+  box(5,3,10,3,O); box(5,4,10,6,main); box(5,4,10,4,G);                // 투구+금테
+  P(5,5,O);P(10,5,O);P(5,6,O);P(10,6,O); P(6,5,light);
+  box(6,7,9,10,SK); box(9,7,9,10,SKD); P(6,8,O);P(8,8,O); P(7,10,SKD); // 얼굴
+  box(3,11,12,11,G); box(3,12,12,14,main);                            // 견갑+금테
+  box(3,12,4,13,light); box(11,12,12,14,dark);
+  box(2,12,2,16,darker); box(13,12,13,16,darker);                     // 망토
+  box(1,14,1,16,darker); box(14,14,14,16,darker);
+  P(8,12,G); P(7,13,G);P(8,13,G);P(9,13,GD); P(8,14,GD);              // 가슴 엠블럼
+  box(5,15,10,15,darken(main,.6)); P(7,15,G);P(8,15,G);               // 벨트
+  box(5,16,6,17,dark); box(9,16,10,17,dark); P(5,16,O);P(10,16,O);    // 다리
+  return cnv;
+}
+function spriteFor(s){ const key=(s.gen?'G':'U')+s.team+'_'+s.troop;
+  if (!spriteCache[key]) spriteCache[key]= s.gen? makeGenSprite(s.team): makeUnitSprite(s.team,s.troop);
+  return spriteCache[key]; }
+
+const USCALE=1.25, GSCALE=2.3;
+
+// ── 렌더 ───────────────────────────────────────────────
+function drawBg(){ if (bgCv.width) ctx.drawImage(bgCv,0,0,W,H); }
+
+function drawShadow(s){ const w=s.gen?24:8; ctx.fillRect((s.x-w/2)|0, (s.y+(s.gen?15:5))|0, w, s.gen?5:3); }
+
+function drawGeneral(s){
+  const spr=spriteFor(s), w=(spr.width*GSCALE)|0, h=(spr.height*GSCALE)|0, team=s.team;
+  const t = (war && war.time) || 0, pulse = 0.5 + 0.5*Math.sin(t*4 + s.x*0.05);
+  ctx.globalAlpha=s.flee?.6:1;
+  // 바닥 엘리트 링(펄스)
+  const ring = team==='player' ? 'rgba(150,205,255,' : 'rgba(255,150,150,';
+  ctx.strokeStyle = ring + (0.30+0.35*pulse) + ')'; ctx.lineWidth=2;
+  const rr = 16 + pulse*4; ctx.beginPath(); ctx.ellipse(s.x, s.y+16, rr, rr*0.42, 0, 0, 7); ctx.stroke();
+  // 발광 오라(펄스)
+  const R = 28 + pulse*7, gl=ctx.createRadialGradient(s.x,s.y,3,s.x,s.y,R);
+  gl.addColorStop(0,'rgba(232,200,115,'+(0.26+0.16*pulse)+')'); gl.addColorStop(1,'rgba(232,200,115,0)');
+  ctx.fillStyle=gl; ctx.fillRect((s.x-R)|0,(s.y-R)|0,(R*2)|0,(R*2)|0);
+  const dx=(s.x-w/2)|0, dy=(s.y-h*0.72)|0;
+  // 깃발(펄럭)
+  const px=s.x|0, ptop=dy-18, wave=Math.sin(t*6 + s.x*0.1)*3;
+  ctx.fillStyle='#4a361f'; ctx.fillRect(px, ptop, 2, 22);
+  ctx.fillStyle=team==='player'?'#2f6db5':'#b53b3b';
+  ctx.beginPath(); ctx.moveTo(px+2, ptop); ctx.lineTo(px+15+wave, ptop+5); ctx.lineTo(px+2, ptop+10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#e8c873'; ctx.fillRect(px-1, ptop-2, 4, 2);            // 금장 창끝
+  // 스프라이트(대형)
+  ctx.drawImage(spr,dx,dy,w,h);
+  // 금테 HP바(크게)
+  const hurt=Math.max(0,s.hp/s.maxHp), bw=38, bx=(s.x-bw/2)|0, by=dy-9;
+  ctx.fillStyle='#1a1206'; ctx.fillRect(bx-2,by-2,bw+4,7);
+  ctx.fillStyle='#e8c873'; ctx.fillRect(bx-2,by-2,bw+4,1);
+  ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillRect(bx,by,bw,4);
+  ctx.fillStyle=hurt>0.3?(team==='player'?'#7fe89a':'#e8a060'):'#e05050'; ctx.fillRect(bx,by,(bw*hurt)|0,4);
+  // 이름표
+  ctx.font='bold 11px "Courier New",monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle='rgba(0,0,0,.75)'; ctx.fillText(s.genName, s.x+1, dy+h+2);
+  ctx.fillStyle=team==='player'?'#bcd8ff':'#ffc4c4'; ctx.fillText(s.genName, s.x, dy+h+1);
+  ctx.textBaseline='middle';
+  ctx.globalAlpha=1;
+}
+
+function drawSoldier(s){
+  if (s.gen){ drawGeneral(s); return; }
+  const spr=spriteFor(s), w=(spr.width*USCALE)|0, h=(spr.height*USCALE)|0;
+  ctx.globalAlpha=s.flee?.5:(s.formed?1:.72);   // 진형 이탈병은 흐릿하게
+
+  ctx.drawImage(spr, (s.x-w/2)|0, (s.y-h*0.72)|0, w, h);
+  ctx.globalAlpha=1;
+}
+
+function render() {
+  drawBg();
+  // 바닥 그림자 패스(입체감)
+  ctx.fillStyle='rgba(0,0,0,.2)';
+  for (const s of war.soldiers) if (s.alive && !s.deserted) drawShadow(s);
+  // 지면 파티클(먼지/피/링)
+  drawFx();
+  // 병사
+  for (const s of war.soldiers) if (s.alive && !s.deserted) drawSoldier(s);
+  // 화살(투사체) — 도트
+  for (const p of war.projectiles) {
+    ctx.fillStyle = p.team === 'player' ? '#2a3f5a' : '#4a2222';
+    ctx.fillRect((p.x - p.dx*8)|0, (p.y - p.dy*8)|0, 2, 2);
+    ctx.fillRect((p.x - p.dx*4)|0, (p.y - p.dy*4)|0, 2, 2);
+    ctx.fillStyle = '#efe0b4'; ctx.fillRect(p.x|0, p.y|0, 2, 2);
+  }
+  // 타격 플래시(도트 스파크 십자 + 확산 사각)
+  for (const f of war.flashes) {
+    const k = Math.max(0, f.ttl / 0.12), x=f.x|0, y=f.y|0, s=(2+(1-k)*3)|0;
+    ctx.globalAlpha = k; ctx.fillStyle = '#fff6cc';
+    ctx.fillRect(x-s, y-1, s*2, 2); ctx.fillRect(x-1, y-s, 2, s*2);
+    ctx.globalAlpha = k*.55; ctx.strokeStyle = '#ffd766'; ctx.lineWidth = 2;
+    const rr=(3+(1-k)*8)|0; ctx.strokeRect(x-rr, y-rr, rr*2, rr*2);
+  }
+  ctx.globalAlpha = 1;
+  // 스킬 발동 이펙트(확산 링 + 스킬명 상승)
+  for (const k of war.skillFx) {
+    const a = Math.max(0, k.ttl / 1.1), t = 1 - a;
+    const col = k.team === 'player' ? '#8fd0ff' : '#ff9a9a';
+    ctx.globalAlpha = a * 0.85; ctx.strokeStyle = col; ctx.lineWidth = 2;
+    const rr = (6 + t * 34) | 0; ctx.strokeRect((k.x - rr) | 0, (k.y - rr) | 0, rr * 2, rr * 2);
+    ctx.globalAlpha = a; ctx.font = 'bold 12px "Courier New",monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ty = (k.gy - 24 - t * 16) | 0;
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillText(k.name, (k.gx + 1) | 0, ty + 1);
+    ctx.fillStyle = col; ctx.fillText(k.name, k.gx | 0, ty);
+  }
+  ctx.globalAlpha = 1;
+  // 비네트(집중감)
+  if (vgrad){ ctx.fillStyle = vgrad; ctx.fillRect(0,0,W,H); }
+
+  if (state === 'setup') {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    for (const sq of war.squads) {
+      const me = sq.team === 'player';
+      const sel = sq === selectedSquad;
+      ctx.strokeStyle = sel ? '#e8c873' : (me ? 'rgba(232,200,115,.55)' : 'rgba(200,80,80,.45)');
+      ctx.lineWidth = sel ? 2.5 : 1.3;
+      ctx.beginPath(); ctx.arc(sq.cx, sq.cy, sel ? 20 : 16, 0, 7); ctx.stroke();
+      const troops = ((sq.members.length - 1) * SOLDIERS_PER_DOT).toLocaleString();
+      ctx.fillStyle = me ? '#ffe9b0' : '#e0a0a0'; ctx.font = (sel ? 'bold ' : '') + '11px "Courier New",monospace';
+      ctx.fillText(`${sq.gen.name} · ${sq.form}`, sq.cx, sq.cy + 32);
+      ctx.fillStyle = me ? '#e8c873' : '#e0a0a0';
+      ctx.fillText(`⚔ 병력 ${troops}`, sq.cx, sq.cy + 45);
+    }
+    ctx.textBaseline = 'middle';
+  }
+  updateHud();
+}
+
+function updateHud() {
+  const pn = WarSim.alive(war, 'player').length, en = WarSim.alive(war, 'enemy').length;
+  const pTot = (war.startCount ? war.startCount.player : pn) || 1;
+  const eTot = (war.startCount ? war.startCount.enemy : en) || 1;
+  $('pCnt').textContent = (pn * SOLDIERS_PER_DOT).toLocaleString();
+  $('eCnt').textContent = (en * SOLDIERS_PER_DOT).toLocaleString();
+  $('pBar').style.width = (pn / pTot * 100) + '%';
+  $('eBar').style.width = (en / eTot * 100) + '%';
+}
+
+// ── 루프 ───────────────────────────────────────────────
+function loop(ts) {
+  if (state !== 'battle') return;
+  const dt = Math.min((ts - last) / 1000 || 0, 0.05); last = ts;
+  if (!paused) {
+    const sub = speed;                 // 배속 = 서브스텝 수
+    for (let i = 0; i < sub && !war.finished; i++) WarSim.stepWar(war, dt);
+    stepFx(dt);
+  }
+  render();
+  if (war.finished) return finish();
+  if (state === 'battle') requestAnimationFrame(loop);
+}
+
+function finish() {
+  render();
+  const r = war.result, win = r.winner === 'player';
+  $('rTitle').textContent = win ? '승  리' : '패  배';
+  $('rTitle').style.color = win ? '#2f5a8c' : '#8c2f2f';
+  $('rInfo').innerHTML = `${r.time}초 · ${r.reason === 'annihilation' ? '섬멸전' : '시간초과'}<br>
+    생존 아군 ${r.survivors.player} / 적군 ${r.survivors.enemy}<br>
+    전사 아군 ${r.casualties.player} / 적군 ${r.casualties.enemy}`;
+  if (CAMPAIGN) {
+    // 영지전 연동: 결과를 부모(영지전)로 전송
+    const payload = { type: 'warfield-result', winner: r.winner,
+      survivors: r.survivors, casualties: r.casualties, time: r.time, startCount: war.startCount };
+    $('ovRow').innerHTML = '<button class="btn" id="cmpBack">출정 결과 확인 ▸</button>';
+    $('cmpBack').onclick = () => { try { window.parent.postMessage(payload, '*'); } catch (e) {} };
+  }
+  $('overlay').classList.add('show');
+}
+
+// ── 입력: 진형 + 드래그 ────────────────────────────────
+$('formRow').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-f]'); if (!b || state !== 'setup' || !selectedSquad) return;
+  const idx = war.squads.indexOf(selectedSquad);
+  playerForms[idx] = b.dataset.f;
+  WarSim.reflowSquad(selectedSquad, selectedSquad.cx, selectedSquad.cy, b.dataset.f);
+  syncFormButtons(); render();
+});
+
+function evPos(e) {
+  const r = cv.getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX - r.left, y: p.clientY - r.top };
+}
+function pointerDown(e) {
+  if (state !== 'setup') return;
+  const { x, y } = evPos(e);
+  let best = null, bd = 40 * 40;
+  for (const sq of war.squads) if (sq.team === 'player') {
+    const d = (sq.cx - x) ** 2 + (sq.cy - y) ** 2; if (d < bd) { bd = d; best = sq; }
+  }
+  if (best) { drag = best; selectedSquad = best; selIdx = war.squads.indexOf(best); syncFormButtons(); refreshTroopUI(); render(); cv.classList.add('dragging'); e.preventDefault(); }
+}
+function pointerMove(e) {
+  if (!drag) return;
+  const { x, y } = evPos(e);
+  const cx = Math.max(30, Math.min(W - 30, x));
+  const cy = Math.max(H * 0.52, Math.min(H - 30, y));   // 아군 진영(하단 절반)에 한정
+  WarSim.reflowSquad(drag, cx, cy, drag.form);
+  render(); e.preventDefault();
+}
+function pointerUp() { drag = null; cv.classList.remove('dragging'); }
+cv.addEventListener('mousedown', pointerDown); window.addEventListener('mousemove', pointerMove); window.addEventListener('mouseup', pointerUp);
+cv.addEventListener('touchstart', pointerDown, { passive:false }); window.addEventListener('touchmove', pointerMove, { passive:false }); window.addEventListener('touchend', pointerUp);
+
+$('startBtn').onclick = () => {
+  state = 'battle'; $('panel').style.display = 'none'; $('hud').style.display = 'flex'; $('speed').classList.add('show');
+  last = performance.now(); requestAnimationFrame(loop);
+};
+$('troopMinus').onclick = () => assignTroop(-DOT_STEP);
+$('troopPlus').onclick = () => assignTroop(DOT_STEP);
+$('speedBtn').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; $('speedBtn').textContent = `▶ ${speed}x`; };
+$('pauseBtn').onclick = () => { paused = !paused; $('pauseBtn').textContent = paused ? '▶' : '⏸'; };
+
+function init() { resize(); newWar(); render(); }
+window.addEventListener('resize', () => { if (state === 'setup') { resize(); newWar(); render(); } else { resize(); } });
+init();
+// 영지전 출정: 셋업 생략하고 즉시 개전(편성은 이미 확정)
+if (CAUTO) { $('panel').style.display = 'none'; $('startBtn').click(); }
+</script>
+</body>
+</html>
