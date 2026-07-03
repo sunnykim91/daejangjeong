@@ -148,6 +148,7 @@
     <div class="seal">志</div>
     <div class="s p"><div class="nm">백제(아군)</div><div class="c" id="pCastle">3</div><div style="font-size:10px">성</div></div>
     <div class="s" id="todBox" style="color:#e8c060"><div class="nm" id="todIcon" style="font-size:16px">☀</div><div class="c" id="todTxt" style="font-size:12px">낮</div></div>
+    <div class="s" id="enBox" title="행동력 — 출진에 소모, 시간당 자동 충전"><div class="nm">⚡ 에너지</div><div class="c" id="enTxt" style="font-size:13px">–</div></div>
   </div>
   <div class="panel">
     <div class="roster orn" id="roster"></div>
@@ -220,6 +221,7 @@
 <script src="src/data.js"></script>
 <script src="src/warsim.js"></script>
 <script src="src/rts.js"></script>
+<script src="src/meta.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -747,6 +749,7 @@ function checkRaidEvents(){
 }
 function updateTodHud(){ const b=$('todBox'); if(!b)return; const n=world.night; $('todIcon').textContent=n?'🌙':'☀'; $('todTxt').textContent=n?'밤':'낮'; b.style.color=n?'#9fb0e0':'#e8c060'; }
 function updateCampBtn(){ const b=$('campBtn'); if(!b)return; const a=selected!=null?RTS.armyOf(world,selected):null; b.textContent=(a&&a.camp)?'🏕 숙영중':'🏕 숙영'; b.style.opacity=a?'1':'.5'; }
+function updateEnergyHud(){ const b=$('enTxt'); if(!b||!window.Meta)return; const e=Meta.energy(); b.textContent=e.v+'/'+e.max; $('enBox').style.color=e.v>0?'#e8c060':'#e07a6a'; }
 
 function render(){
   computeVision();
@@ -1062,12 +1065,15 @@ $('soDots').oninput=updateSortieUI;
 $('soClose').onclick=closeSortie;
 $('soEquip').onclick=()=>openEquip(genById(sortieGen));
 $('eqClose').onclick=closeEquip;
-$('soGo').onclick=()=>{ const d=+$('soDots').value, army=RTS.sortie(world,sortieCastle,sortieGen,d,sortieForm);
-  if(army){ closeSortie(); buildRoster(); selected=army.id; fillOfficer(army);
+$('soGo').onclick=()=>{
+  if(window.Meta && !Meta.spendEnergy(1)){ screenFx({flash:[200,80,60],fdur:0.3,text:'에너지 부족',sub:'행동력이 회복될 때까지 기다리세요',color:'#ff9a6a',tdur:1.6}); return; }
+  const d=+$('soDots').value, army=RTS.sortie(world,sortieCastle,sortieGen,d,sortieForm);
+  if(army){ closeSortie(); buildRoster(); selected=army.id; fillOfficer(army); updateEnergyHud();
     AU.horn(); screenFx({flash:[232,200,115],fdur:0.28,text:army.gen.name+' 出陣!',sub:sortieForm+' · 병력 '+(d*100).toLocaleString(),color:'#ffe07a',tdur:1.5});
-    const g=army.members.find(m=>m.gen); if(g){ cam.x=Math.max(0,Math.min(MAPW-VW,g.x-VW/2)); cam.y=Math.max(0,Math.min(MAPH-VH,g.y-VH/2)); } render(); } };
+    const g=army.members.find(m=>m.gen); if(g){ cam.x=Math.max(0,Math.min(MAPW-VW,g.x-VW/2)); cam.y=Math.max(0,Math.min(MAPH-VH,g.y-VH/2)); } render(); }
+  else if(window.Meta){ Meta.addEnergy(1); updateEnergyHud(); } };
 
-function init(){ resize(); newWorld(); buildRoster(); render(); last=performance.now(); requestAnimationFrame(loop); }
+function init(){ resize(); newWorld(); buildRoster(); render(); updateEnergyHud(); setInterval(updateEnergyHud,1000); last=performance.now(); requestAnimationFrame(loop); }
 window.addEventListener('resize',()=>{ resize(); render(); });
 init();
 </script>

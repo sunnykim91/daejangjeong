@@ -47,6 +47,7 @@ chromium-browser --headless=new --no-sandbox --disable-gpu --window-size=1200,80
 | `warfield.html` | 실전 전투 | 단일 회전. 병력 배정·진형·배치 후 수십~백명 실시간 충돌. 지형·진형상성·지력스킬·장수강화 | ✅ 핵심 |
 | `campaign.html` | 영지전 | 지도 6영지 정복. 편성(병력/진형) 후 출정→**warfield 실전 전투로 개전** | ✅ |
 | `codex.html` | 장수 도감 | 8장수 스탯·병종 상성·스킬 해설(도트 흉상) | ✅ |
+| `gacha.html` | **등용(가챠)** | 등용서로 42장 장수풀 뽑기 + 진영별 수집/시너지 + 에너지. Track A 상업층 목업 | ✅ Phase2b |
 | `index_cards.html` | (백업) | 최초 카드형 UI | deprecated |
 
 > **옛 4:4 턴제 일기토는 제거됨**(`battle.html`·`duel.js`·`battleview.js` 삭제). → **총력전에서 실시간 무장 결투 + 시네마틱 컷씬으로 재설계 완료**(HANDOVER §4-2 일기토). `index_cards.html`은 최초 카드 UI 백업(deprecated).
@@ -138,6 +139,14 @@ howon/
 - `imageSmoothingEnabled=false` + CSS `image-rendering:pixelated`. 유닛/장수/성 = 절차생성 도트 스프라이트(팀+병종별 캐시, `makeUnitSprite`/`makeGenSprite`/`makeCastle`). 지형=오프스크린 타일 배경 1회 렌더 후 blit(`PX=5`). 장수는 대형(GSCALE~2.1~2.3)+발광오라·펄스링·깃발.
 
 ---
+
+### 4-7. 상업층 — 등용(가챠)·에너지 (Phase2b, Track A 목업 2026-07-03)
+> ⚠️ **Track A 목업**: 확률·재화·에너지는 클라 `localStorage`. 서버판(Track B)에서 계정/서버 인증으로 교체. 확률·수치는 **임시값**(기획자 확정 대기).
+- **장수 카드풀**(`src/cards.js`): 7진영 42장 — 중국(위·촉·오)/한반도(고구려·백제·신라)/일본(전국). `rarity` 3=노말/4=레어/5=전설/6=신화. `CARDS.POOL`/`byFaction`/`byRarity`, `FACTION_COLOR`/`REGION`/`FACTION_SYNERGY`(표시용). window: `CARDS`/`POOL`.
+- **가챠 로직**(`src/gacha.js`, 순수·검증가능): `RATES`(등용서 등급→장수 등급 확률표), `rollGeneral(grade,rng)`(등급 뽑고 해당 rarity 장수 추출, 없으면 인접 폴백), `pickRarity`. 검증 `test/gacha_sim.js`(분포·시드재현).
+- **메타 저장**(`src/meta.js`, localStorage): `energy()`(5분당+1, 최대20, 시간기반 충전)·`spendEnergy`/`addEnergy`, `scrolls`/`useScroll`/`addScroll`(등용서 인벤), `owned`/`addOwned`(보유 장수). `Meta.reset()`.
+- **등용 화면**(`gacha.html`): 에너지·등용서 인벤 상단바 + 등급별 등용 버튼 + 획득 카드 리빌(NEW/등급색) + 보유 장수 진영별 수집(시너지 표시). 자체 진영색 도트 흉상. "등용서 보충(테스트)" 버튼은 일일퀘/정벌 보상 대체 임시.
+- **에너지 연동(total.html)**: 출진(`soGo`) 시 `Meta.spendEnergy(1)`(부족 시 차단·실패 시 환불), HUD `⚡에너지` 표시(`updateEnergyHud`, 1초 폴링).
 
 ## 5. 알려진 한계 / 미완
 1. **총력전 v2 완료 항목**: 출진 편성 팝업·성별 병력풀·민심충원·공성전(성벽반격/포위충원중단)·민첩도망/재주둔·재입성·일기토(일시정지 시네마틱 컷씬·격파해산)·진형유지+방향+난전접적·**통과불가지형+플로우필드 경로탐색(끼임방지)**·6종지형·안개+미니맵·**장비시스템+장수고유조형/초상**·효과음+화면연출·실제 지형타일셋·삼국지7 UI(장수패널·로스터·편성팝업·문양프레임). **남은 것**: 박스 다중선택·부대 그룹·난이도·계략 필드발동·장수 성장/충성.

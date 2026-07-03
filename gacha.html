@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대장정 — 등용(登用)</title>
+<style>
+  :root { --gold:#b8860b; --gold-lt:#e8c873; --ink:#26190a; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; background:#171208; color:#e8e0d0; font-family:"Gungsuh","Batang","Apple SD Gothic Neo",serif; }
+  body { background:radial-gradient(circle at 50% -10%, #2a2010, #120d06 70%); }
+  .home { position:fixed; top:12px; left:14px; z-index:9; text-decoration:none; font-size:13px; color:var(--ink);
+    background:linear-gradient(#f0e0b6,#cdae78); border:2px solid var(--ink); border-radius:4px; padding:6px 14px; box-shadow:2px 2px 0 rgba(20,14,6,.5); }
+  .wrap { max-width:960px; margin:0 auto; padding:54px 16px 40px; }
+  h1 { text-align:center; font-size:34px; letter-spacing:12px; margin:6px 0 4px; color:var(--gold-lt); text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .sub { text-align:center; font-size:12px; color:#a89466; margin-bottom:18px; }
+  .topbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; margin-bottom:16px; }
+  .pill { background:rgba(20,16,8,.72); border:2px solid #4a3418; border-radius:6px; padding:7px 14px; font-size:14px; box-shadow:2px 2px 0 rgba(0,0,0,.4); }
+  .pill b { color:var(--gold-lt); font-family:"Courier New",monospace; }
+  .pill .t { font-size:11px; color:#9a8656; margin-left:4px; }
+  .scrolls { display:flex; gap:6px; }
+  .sc { background:rgba(20,16,8,.72); border:2px solid #4a3418; border-radius:6px; padding:6px 10px; text-align:center; min-width:58px; }
+  .sc .g { font-size:12px; font-weight:bold; } .sc .n { font-family:"Courier New",monospace; font-size:15px; color:#e8e0d0; }
+  .pullrow { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:18px 0 6px; }
+  .pullbtn { cursor:pointer; border:2px solid var(--ink); border-radius:8px; padding:12px 20px; min-width:150px; text-align:center;
+    background:linear-gradient(#f0e0b6,#cdae78); color:var(--ink); box-shadow:3px 3px 0 rgba(20,14,6,.5); transition:transform .08s; }
+  .pullbtn:hover { transform:translateY(-2px); } .pullbtn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(20,14,6,.5); }
+  .pullbtn.dis { opacity:.4; cursor:default; filter:grayscale(.6); }
+  .pullbtn .pg { font-size:17px; font-weight:bold; letter-spacing:2px; } .pullbtn .pd { font-size:11px; color:#5a4020; margin-top:3px; }
+  .freebtn { cursor:pointer; border:1px dashed #7a5a2e; background:rgba(90,64,30,.2); color:#d3b985; border-radius:6px; padding:8px 14px; font-size:12px; }
+  .reveal { min-height:20px; display:flex; justify-content:center; margin:14px 0 26px; }
+  .card { position:relative; width:230px; background:linear-gradient(#e8d7af,#c2a878); border:3px solid var(--gold); border-radius:10px;
+    padding:14px; text-align:center; color:var(--ink); box-shadow:0 0 26px rgba(232,200,115,.4), 4px 6px 0 rgba(0,0,0,.5); animation:pop .4s ease; }
+  @keyframes pop { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.06)} 100%{transform:scale(1);opacity:1} }
+  .card .por { width:96px; height:96px; margin:2px auto 6px; background:linear-gradient(#a6c4e2,#6a6558); border:2px solid #7a5a2e; box-shadow:inset 0 0 0 2px #d9b24a; }
+  .card .por img { width:92px; height:92px; image-rendering:pixelated; }
+  .card .nm { font-size:20px; font-weight:bold; letter-spacing:1px; }
+  .card .rr { font-size:15px; letter-spacing:-1px; margin:2px 0; }
+  .card .fac { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; margin-top:2px; }
+  .card .new { position:absolute; top:-10px; right:-10px; background:#c0392b; color:#f4e0c0; font-size:12px; font-weight:bold; padding:3px 9px; border-radius:10px; transform:rotate(10deg); border:1px solid #5a1810; }
+  .card .st { display:flex; justify-content:space-between; font-size:11px; margin:2px 8px 0; }
+  h2 { text-align:center; font-size:20px; letter-spacing:6px; color:var(--gold-lt); border-top:1px solid #4a3418; padding-top:18px; margin-top:26px; }
+  .region { margin:14px 0; }
+  .region .rh { font-size:13px; color:#a89466; letter-spacing:3px; margin:10px 0 6px; border-bottom:1px solid #3a2c16; padding-bottom:3px; }
+  .facgrp { margin:8px 0 14px; }
+  .facgrp .fh { font-size:14px; font-weight:bold; margin-bottom:5px; }
+  .facgrp .syn { font-size:11px; color:#8fbf7a; margin-left:8px; }
+  .grid { display:flex; flex-wrap:wrap; gap:8px; }
+  .mini { width:74px; background:linear-gradient(#e6d5ac,#c8ad78); border:2px solid #4a3418; border-radius:5px; padding:4px; text-align:center; box-shadow:1px 1px 0 rgba(0,0,0,.4); }
+  .mini.locked { background:linear-gradient(#2a2418,#1c1810); border-color:#2c2416; opacity:.55; }
+  .mini .por { width:52px; height:52px; margin:0 auto; background:#0f1510; border-radius:2px; }
+  .mini .por img { width:52px; height:52px; image-rendering:pixelated; }
+  .mini .mn { font-size:9px; color:var(--ink); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini.locked .mn { color:#8a8172; } .mini .mr { font-size:9px; letter-spacing:-1px; }
+  .mini.locked .por { filter:grayscale(1) brightness(.5); }
+</style>
+</head>
+<body>
+<a class="home" href="index.html">← 메뉴</a>
+<div class="wrap">
+  <h1>登 用</h1>
+  <div class="sub">등용서로 천하의 장수를 모아라 · ⚠️ 확률·재화는 프로토타입 임시값</div>
+  <div class="topbar">
+    <div class="pill">⚡ 에너지 <b id="enVal">–</b>/<span id="enMax">–</span><span class="t" id="enTimer"></span></div>
+    <div class="scrolls" id="scrolls"></div>
+  </div>
+  <div class="pullrow" id="pullrow"></div>
+  <div style="text-align:center"><span class="freebtn" id="freeBtn">📜 등용서 보충(테스트) — 일일퀘/정벌 보상 대체</span></div>
+  <div class="reveal" id="reveal"></div>
+  <h2>보 유 장 수 <span id="ownCount" style="font-size:13px;color:#a89466"></span></h2>
+  <div id="collection"></div>
+</div>
+
+<script src="src/cards.js"></script>
+<script src="src/gacha.js"></script>
+<script src="src/meta.js"></script>
+<script>
+const $=(id)=>document.getElementById(id);
+// ── 카드 초상(진영색 도트 흉상, 자체 렌더) ──────────────
+const FCOL=CARDS.FACTION_COLOR;
+function _rgb(h){ const n=parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function lighten(h,f){ const [r,g,b]=_rgb(h); return `rgb(${r+(255-r)*f|0},${g+(255-g)*f|0},${b+(255-b)*f|0})`; }
+function darken(h,f){ const [r,g,b]=_rgb(h); return `rgb(${r*(1-f)|0},${g*(1-f)|0},${b*(1-f)|0})`; }
+const bustCache={};
+function makeBust(g){
+  const key=g.id; if(bustCache[key])return bustCache[key];
+  const main=FCOL[g.faction]||'#8a8f98', armorL=lighten(main,.42), armorD=darken(main,.45);
+  const o='#120d08',sk='#e7c79c',skd='#c99f6e',metal='#cdd3da',wood='#7c5a2e';
+  const plume=GACHA.RARITY_COLOR[g.rarity]||'#cccccc';
+  const c=document.createElement('canvas'); c.width=16;c.height=16; const x=c.getContext('2d');
+  const P=(a,b,col)=>{x.fillStyle=col;x.fillRect(a,b,1,1);}; const box=(x0,y0,x1,y1,col)=>{for(let b=y0;b<=y1;b++)for(let a=x0;a<=x1;a++)P(a,b,col);};
+  box(2,11,13,15,armorD); box(3,12,12,15,main); box(3,12,6,13,armorL);        // 갑옷(진영색)
+  box(6,10,9,11,skd); box(5,5,10,10,sk); box(9,6,10,10,skd); P(6,7,o); P(9,7,o);// 얼굴
+  box(4,3,11,5,darken(main,.5)); box(5,3,10,4,main); box(4,5,11,5,darken(main,.5)); // 투구
+  P(7,1,plume);P(8,1,plume);P(7,2,plume);P(8,2,plume);                         // 볏(등급색)
+  if(g.troop==='창병'){ for(let y=2;y<=14;y++)P(13,y,wood); P(13,1,metal); }
+  else if(g.troop==='궁병'){ P(13,4,wood);P(14,5,wood);P(14,6,wood);P(14,7,wood);P(14,8,wood);P(13,9,wood); }
+  else if(g.troop==='기병'){ box(10,14,14,15,'#2a1e12'); box(11,13,13,13,'#3a2a16'); }
+  else { box(12,7,14,12,metal); box(12,7,13,11,'#aab2bb'); }
+  return bustCache[key]=c.toDataURL();
+}
+const stars=(r)=>'★'.repeat(r)+'☆'.repeat(Math.max(0,6-r));
+
+// ── 상단바(에너지·등용서) ─────────────────────────────────
+function fmtMs(ms){ const s=Math.ceil(ms/1000); return `${(s/60|0)}:${String(s%60).padStart(2,'0')}`; }
+function renderTop(){
+  const e=Meta.energy(); $('enVal').textContent=e.v; $('enMax').textContent=e.max;
+  $('enTimer').textContent = e.nextMs>0 ? ('· 충전 '+fmtMs(e.nextMs)) : '· 가득';
+  const sc=Meta.scrolls(), box=$('scrolls'); box.innerHTML='';
+  for(const g of GACHA.SCROLLS){ const el=document.createElement('div'); el.className='sc';
+    el.innerHTML=`<div class="g" style="color:${GACHA.RARITY_COLOR[({노말:3,레어:4,전설:5,신화:6})[g]]}">${g}</div><div class="n">${sc[g]||0}</div>`;
+    box.appendChild(el); }
+}
+// ── 등용(뽑기) ────────────────────────────────────────────
+function renderPulls(){
+  const sc=Meta.scrolls(), row=$('pullrow'); row.innerHTML='';
+  for(const g of GACHA.SCROLLS){ const n=sc[g]||0, el=document.createElement('div');
+    el.className='pullbtn'+(n<1?' dis':'');
+    el.innerHTML=`<div class="pg" style="color:${n<1?'#5a4020':GACHA.RARITY_COLOR[({노말:3,레어:4,전설:5,신화:6})[g]]}">${g} 등용</div><div class="pd">보유 ${n}장</div>`;
+    if(n>=1) el.addEventListener('click',()=>pull(g));
+    row.appendChild(el);
+  }
+}
+function pull(grade){
+  if(!Meta.useScroll(grade)) return;
+  const g=GACHA.rollGeneral(grade);
+  const isNew=Meta.addOwned(g.id);
+  showReveal(g,isNew);
+  renderTop(); renderPulls(); renderCollection();
+}
+function showReveal(g,isNew){
+  const col=GACHA.RARITY_COLOR[g.rarity];
+  $('reveal').innerHTML=`<div class="card" style="border-color:${col};box-shadow:0 0 30px ${col}66,4px 6px 0 rgba(0,0,0,.5)">
+    ${isNew?'<div class="new">NEW</div>':'<div class="new" style="background:#6a5a2e">보유+</div>'}
+    <div class="por"><img src="${makeBust(g)}"></div>
+    <div class="nm">${g.name}</div>
+    <div class="rr" style="color:${col}">${stars(g.rarity)} <b>${GACHA.RARITY_NAME[g.rarity]}</b></div>
+    <div class="fac" style="background:${FCOL[g.faction]}">${g.faction} · ${g.troop}</div>
+    <div class="st"><span>무 ${g.might}</span><span>통 ${g.command}</span><span>지 ${g.intellect}</span><span>민 ${g.agility}</span></div>
+    <div style="font-size:11px;margin-top:5px;color:#7c2e2e">특기 · ${g.skill}${g.stratagem?' · 책략 '+g.stratagem:''}</div>
+  </div>`;
+}
+// ── 보유 장수 수집(진영별 시너지) ─────────────────────────
+function synergyOf(count){ let s=null; for(const t of CARDS.FACTION_SYNERGY) if(count>=t.n) s=t; return s; }
+function renderCollection(){
+  const own=new Set(Meta.owned()); $('ownCount').textContent=`(${own.size} / ${CARDS.POOL.length})`;
+  const regions={}; for(const f of CARDS.FACTIONS){ const r=CARDS.REGION[f]; (regions[r]=regions[r]||[]).push(f); }
+  const box=$('collection'); box.innerHTML='';
+  for(const rname in regions){
+    const rd=document.createElement('div'); rd.className='region';
+    rd.innerHTML=`<div class="rh">◆ ${rname}</div>`;
+    for(const f of regions[rname]){
+      const list=CARDS.byFaction(f).sort((a,b)=>b.rarity-a.rarity);
+      const ownN=list.filter(g=>own.has(g.id)).length;
+      const syn=synergyOf(ownN);
+      const grp=document.createElement('div'); grp.className='facgrp';
+      grp.innerHTML=`<div class="fh" style="color:${FCOL[f]}">${f} <span style="color:#9a8656;font-size:11px">${ownN}/${list.length}</span>${syn?`<span class="syn">시너지 ${syn.n}★ — ${syn.desc}</span>`:''}</div>`;
+      const grid=document.createElement('div'); grid.className='grid';
+      for(const g of list){ const has=own.has(g.id); const m=document.createElement('div'); m.className='mini'+(has?'':' locked');
+        m.innerHTML=`<div class="por"><img src="${makeBust(g)}"></div><div class="mn">${has?g.name:'？？？'}</div><div class="mr" style="color:${has?GACHA.RARITY_COLOR[g.rarity]:'#6a6252'}">${'★'.repeat(g.rarity)}</div>`;
+        grid.appendChild(m);
+      }
+      grp.appendChild(grid); rd.appendChild(grp);
+    }
+    box.appendChild(rd);
+  }
+}
+$('freeBtn').addEventListener('click',()=>{ Meta.addScroll('노말',3); Meta.addScroll('레어',1); renderTop(); renderPulls(); });
+
+function tick(){ renderTop(); }
+renderTop(); renderPulls(); renderCollection();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
