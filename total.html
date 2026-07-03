@@ -650,10 +650,26 @@ function drawGeneral(s,sx,sy){
   ctx.fillStyle='#1a1206'; ctx.fillRect(bx-2,by-2,bw+4,6); ctx.fillStyle='#e8c873'; ctx.fillRect(bx-2,by-2,bw+4,1);
   ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillRect(bx,by,bw,4);
   ctx.fillStyle=hurt>0.3?(team==='player'?'#7fe89a':'#e8a060'):'#e05050'; ctx.fillRect(bx,by,(bw*hurt)|0,4);
-  ctx.font='bold 10px "Courier New",monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
-  ctx.fillStyle='rgba(0,0,0,.75)'; ctx.fillText(s.genName,sx+1,dy+h+2);
-  ctx.fillStyle=team==='player'?'#bcd8ff':'#ffc4c4'; ctx.fillText(s.genName,sx,dy+h+1);
-  ctx.textBaseline='middle'; ctx.globalAlpha=1;
+  ctx.textBaseline='middle'; ctx.globalAlpha=1;   // 이름은 drawArmyLabel(부대 깃발)에서 표기
+}
+// 부대 표식: 장수 머리 위 깃발 + 양피지 이름 라벨 + 병력수 (삼국지식 부대 라벨)
+function drawArmyLabel(a){
+  if(a._merged)return;
+  const g=a.members.find(m=>m.gen&&m.alive&&!m.gone); if(!g)return;
+  if(a.team==='enemy'&&!visAt(g.x,g.y))return;
+  const gx=g.x-cam.x, gy=g.y-cam.y, ly=(gy-46)|0;
+  if(gx<-70||ly<-24||gx>VW+70||ly>VH+30)return;
+  let n=0; for(const m of a.members)if(!m.gen&&m.alive&&!m.gone)n++;
+  const isSel=(a.id===selected), flagc=a.team==='player'?'#3f6fb0':'#b53b3b', txtc=a.team==='player'?'#274a82':'#872b2b';
+  ctx.font='bold 12px "Batang",serif'; ctx.textBaseline='middle';
+  const tw=Math.ceil(ctx.measureText(g.genName).width), lw=tw+16, lx=(gx-lw/2)|0;
+  ctx.strokeStyle='#5a4326'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(gx,gy-16); ctx.lineTo(gx,ly-2); ctx.stroke();   // 깃대
+  ctx.fillStyle=flagc; ctx.beginPath(); ctx.moveTo(gx,ly-3); ctx.lineTo(gx+13,ly); ctx.lineTo(gx,ly+3); ctx.closePath(); ctx.fill();  // 펜넌트
+  ctx.fillStyle=isSel?'rgba(255,246,214,0.96)':'rgba(244,235,208,0.9)'; ctx.fillRect(lx,ly,lw,17);                      // 양피지 라벨
+  ctx.strokeStyle=isSel?'#c79a3a':'rgba(110,84,52,0.6)'; ctx.lineWidth=isSel?1.6:1; ctx.strokeRect(lx+0.5,ly+0.5,lw,17);
+  ctx.fillStyle=txtc; ctx.textAlign='center'; ctx.fillText(g.genName,gx,ly+9);
+  ctx.font='9px "Courier New",monospace'; ctx.fillStyle='rgba(50,36,16,0.82)'; ctx.fillText('병력 '+(n*100).toLocaleString(),gx,ly+25);
+  ctx.textAlign='center';
 }
 // 성 = 넓은 목책(울타리) 진영. 내부에 주둔 병력을 도트로 채워 병력량을 눈으로 파악.
 const CENC={w:200,h:160};                                   // 진영 크기(약 900도트 수용)
@@ -985,6 +1001,7 @@ function render(){
   // 선택 링(장수 아래)
   if(selected){ const a=RTS.armyOf(world,selected); const g=a&&a.members.find(m=>m.gen&&m.alive); if(g){ ctx.strokeStyle='#e8c873'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(g.x-cam.x,g.y-cam.y+16,20,9,0,0,7); ctx.stroke(); } }
   drawHover();   // 커서 호버 하이라이트 + 이동 경로 미리보기
+  for(const a of world.armies) drawArmyLabel(a);   // 부대 깃발+이름 라벨
   // 화살 (적 화살은 시야 내만)
   for(const p of world.projectiles){ if(p.team==='enemy'&&!visAt(p.x,p.y))continue; ctx.fillStyle=p.team==='player'?'#2a3f5a':'#4a2222'; ctx.fillRect((p.x-cam.x-p.dx*8)|0,(p.y-cam.y-p.dy*8)|0,2,2); ctx.fillStyle='#efe0b4'; ctx.fillRect((p.x-cam.x)|0,(p.y-cam.y)|0,2,2); }
   // 타격
