@@ -169,7 +169,7 @@
   <a class="home" href="index.html">← 메뉴</a>
   <div class="hud orn">
     <div class="s e"><div class="nm">고구려(적)</div><div class="c" id="eCastle">3</div><div style="font-size:10px">성</div></div>
-    <div class="seal">志</div>
+    <div class="seal">정</div>
     <div class="s p"><div class="nm">백제(아군)</div><div class="c" id="pCastle">3</div><div style="font-size:10px">성</div></div>
     <div class="s" id="todBox" style="color:#e8c060"><div class="nm" id="todIcon" style="font-size:16px">☀</div><div class="c" id="todTxt" style="font-size:12px">낮</div></div>
     <div class="s" id="enBox" title="행동력 — 출진에 소모, 시간당 자동 충전"><div class="nm">⚡ 에너지</div><div class="c" id="enTxt" style="font-size:13px">–</div></div>
@@ -180,7 +180,7 @@
   </div>
   <div class="duelcut" id="duelcut">
     <div><div class="med"><img id="dcA" alt=""></div><div class="who" id="dcAn"></div></div>
-    <div class="vs" id="dcVs">⚔ 一騎討 ⚔</div>
+    <div class="vs" id="dcVs">⚔ 일기토 ⚔</div>
     <div><div class="med"><img id="dcB" alt=""></div><div class="who" id="dcBn"></div></div>
   </div>
   <div class="mmwrap orn"><canvas id="mm"></canvas></div>
@@ -198,22 +198,22 @@
   </div>
   <div class="ctrls">
     <button class="btn" id="campBtn" style="opacity:.5">🏕 숙영</button>
-    <button class="btn" id="saveBtn" title="저장">💾</button>
-    <button class="btn" id="loadBtn" title="불러오기">📁</button>
-    <button class="btn" id="helpBtn" title="도움말">❓</button>
-    <button class="btn" id="muteBtn">🔊</button>
-    <button class="btn" id="speedBtn">▶ 1x</button>
-    <button class="btn" id="pauseBtn">⏸</button>
+    <button class="btn" id="saveBtn">💾 저장</button>
+    <button class="btn" id="loadBtn">📁 불러오기</button>
+    <button class="btn" id="helpBtn">❓ 도움말</button>
+    <button class="btn" id="muteBtn" title="소리">🔊</button>
+    <button class="btn" id="speedBtn">▶ 속도 1x</button>
+    <button class="btn" id="pauseBtn" title="일시정지">⏸</button>
   </div>
   <div class="overlay" id="overlay"><div class="box orn">
-    <div class="seal">志</div>
+    <div class="seal">정</div>
     <div class="bxtop">大 長 征</div>
     <h2 id="rTitle"></h2>
     <div class="row"><button class="btn" onclick="location.reload()">다시</button>
       <a class="btn" href="index.html" style="text-decoration:none">메뉴</a></div>
   </div></div>
   <div class="overlay" id="sortieOv"><div class="box orn sortie">
-    <div class="stitle"><span class="seal">出</span><span id="soName">출진 편성</span></div>
+    <div class="stitle"><span class="seal">출</span><span id="soName">출진 편성</span></div>
     <div class="sbody">
       <div class="sleft">
         <div class="sPortrait"><img id="soPor" alt=""></div>
@@ -231,7 +231,7 @@
     <div class="row"><button class="btn" id="soEquip">장비</button><button class="btn cmdgo" id="soGo">出 陣</button><button class="btn" id="soClose">닫기</button></div>
   </div></div>
   <div class="overlay" id="equipOv"><div class="box orn sortie">
-    <div class="stitle"><span class="seal">裝</span><span id="eqName">장비</span></div>
+    <div class="stitle"><span class="seal">장</span><span id="eqName">장비</span></div>
     <div class="sbody">
       <div class="sleft">
         <div class="sPortrait"><img id="eqPor" alt=""></div>
@@ -244,7 +244,7 @@
     <div class="row"><button class="btn" id="eqClose">닫기</button></div>
   </div></div>
   <div class="overlay" id="duelOv"><div class="duelbox orn">
-    <div class="dhead">⚔ 一 騎 討 ⚔</div>
+    <div class="dhead">⚔ 일 기 토 ⚔</div>
     <div class="dfighters"><div class="df" id="dfP"></div><div class="dvs">VS</div><div class="df" id="dfE"></div></div>
     <div class="dlog" id="duelLog"></div>
     <div class="duelActs" id="duelActs"></div>
@@ -317,8 +317,8 @@ function stepScreenFx(dt){
 function checkCastleEvents(){
   for(const c of world.castles){ const prev=_castleOwner[c.id];
     if(prev!==undefined && prev!==c.owner){ AU.boom();
-      if(c.owner==='player') screenFx({flash:[90,150,230],shake:12,text:c.name+' 占領!',sub:'적 성을 함락시켰다',color:'#bcd8ff'});
-      else screenFx({flash:[200,60,50],shake:15,text:c.name+' 陷落!',sub:'성을 빼앗겼다',color:'#ff8a6a'});
+      if(c.owner==='player') screenFx({flash:[90,150,230],shake:12,text:c.name+' 점령!',sub:'적 성을 함락시켰다',color:'#bcd8ff'});
+      else screenFx({flash:[200,60,50],shake:15,text:c.name+' 함락!',sub:'성을 빼앗겼다',color:'#ff8a6a'});
     }
     _castleOwner[c.id]=c.owner;
   }
@@ -760,7 +760,7 @@ function drawDuelCutscene(d){
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const titK=Math.min(1,d.t/0.5), ts=1+(1-titK)*1.6;                                             // 타이틀 슬램
   ctx.save(); ctx.translate(cx,bh+42); ctx.scale(ts,ts); ctx.globalAlpha=al*titK;
-  ctx.font='bold 30px "Batang",serif'; ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillText('一 騎 討',2,2); ctx.fillStyle='#ffe07a'; ctx.fillText('一 騎 討',0,0); ctx.restore();
+  ctx.font='bold 30px "Batang",serif'; ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillText('일 기 토',2,2); ctx.fillStyle='#ffe07a'; ctx.fillText('일 기 토',0,0); ctx.restore();
   if(d.ended){ const rk=Math.min(1,(t-d.endT)/0.25), rs=1+(1-rk)*0.8, msg=d.winnerName+(d.killed?' 격파!':' 勝');
     ctx.save(); ctx.translate(cx,cy+VH*0.22); ctx.scale(rs,rs); ctx.globalAlpha=al*rk;
     ctx.font='bold 40px "Batang",serif'; ctx.fillStyle='rgba(0,0,0,.8)'; ctx.fillText(msg,3,3); ctx.fillStyle=d.killed?'#ff8a5a':'#ffe07a'; ctx.fillText(msg,0,0); ctx.restore(); }
@@ -1041,7 +1041,7 @@ function openSortie(id){
     gg.appendChild(el);
   });
   selectSortieGen(c.garrison[0].def, gg.firstChild);
-  $('soName').textContent=c.name+' 出陣';
+  $('soName').textContent=c.name+' 출진';
   const maxDots=Math.max(1,Math.floor(c.troops/100)), sl=$('soDots');
   sl.min=1; sl.max=maxDots; sl.value=Math.min(maxDots,Math.max(1,Math.floor(maxDots/2)));
   updateSortieUI(); $('soForm').textContent=sortieForm; sortieFormHint();
@@ -1109,7 +1109,7 @@ window.addEventListener('keydown',(e)=>{ keys[e.key]=true;
 window.addEventListener('keyup',(e)=>{ keys[e.key]=false; });
 cv.addEventListener('mousemove',(e)=>{ const {x,y}=evPos(e), M=40; edge.x=x<M?-1:x>VW-M?1:0; edge.y=y<M?-1:y>VH-M?1:0; });
 cv.addEventListener('mouseleave',()=>{ edge.x=edge.y=0; });
-$('speedBtn').onclick=()=>{ speed=speed===1?2:speed===2?4:1; $('speedBtn').textContent=`▶ ${speed}x`; };
+$('speedBtn').onclick=()=>{ speed=speed===1?2:speed===2?4:1; $('speedBtn').textContent=`▶ 속도 ${speed}x`; };
 $('pauseBtn').onclick=()=>{ paused=!paused; $('pauseBtn').textContent=paused?'▶':'⏸'; };
 $('muteBtn').onclick=()=>{ AU.resume(); $('muteBtn').textContent=AU.toggle()?'🔊':'🔇'; };
 $('campBtn').onclick=()=>{ if(selected==null)return; const a=RTS.armyOf(world,selected); if(!a||a._merged)return; RTS.setCamp(world,selected,!a.camp); updateCampBtn(); render(); };
@@ -1122,7 +1122,7 @@ $('soGo').onclick=()=>{
   if(window.Meta && !Meta.spendEnergy(1)){ screenFx({flash:[200,80,60],fdur:0.3,text:'에너지 부족',sub:'행동력이 회복될 때까지 기다리세요',color:'#ff9a6a',tdur:1.6}); return; }
   const d=+$('soDots').value, army=RTS.sortie(world,sortieCastle,sortieGen,d,sortieForm);
   if(army){ closeSortie(); buildRoster(); selected=army.id; fillOfficer(army); updateEnergyHud();
-    AU.horn(); screenFx({flash:[232,200,115],fdur:0.28,text:army.gen.name+' 出陣!',sub:sortieForm+' · 병력 '+(d*100).toLocaleString(),color:'#ffe07a',tdur:1.5});
+    AU.horn(); screenFx({flash:[232,200,115],fdur:0.28,text:army.gen.name+' 출진!',sub:sortieForm+' · 병력 '+(d*100).toLocaleString(),color:'#ffe07a',tdur:1.5});
     const g=army.members.find(m=>m.gen); if(g){ cam.x=Math.max(0,Math.min(MAPW-VW,g.x-VW/2)); cam.y=Math.max(0,Math.min(MAPH-VH,g.y-VH/2)); } render(); }
   else if(window.Meta){ Meta.addEnergy(1); updateEnergyHud(); } };
 
@@ -1159,30 +1159,41 @@ function showKit(actor){
     b.innerHTML=`<b>${sk.name}</b><small>${ready?sk.desc:'재사용 '+actor.cds[id]+'턴'}</small>`;
     if(ready)b.onclick=()=>playerSkill(id); box.appendChild(b);
   }
+  const auto=document.createElement('button'); auto.className='dbtn'; auto.style.background='linear-gradient(#d8c89a,#b0996a)';
+  auto.innerHTML='<b>▶ 자동</b><small>끝까지 자동</small>'; auto.onclick=autoFinishDuel; box.appendChild(auto);
 }
 function hideKit(){ $('duelActs').style.display='none'; }
-function playerSkill(id){ hideKit(); Duel.useSkill(dDuel,id); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,450); }
+function playerSkill(id){ try{ hideKit(); Duel.useSkill(dDuel,id); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,420); }catch(e){ autoFinishDuel(); } }
 function duelTurn(){
-  if(dDuel.finished)return duelFinish();
-  Duel.beginTurn(dDuel); renderDuel();
-  if(dDuel.finished)return duelFinish();
-  const actor=dDuel.order[dDuel.idx];
-  if(actor.side==='p') showKit(actor);
-  else setTimeout(()=>{ Duel.useSkill(dDuel,Duel.aiPick(dDuel)); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,600); },600);
+  try{
+    if(!dDuel) return;
+    if(dDuel.finished)return duelFinish();
+    Duel.beginTurn(dDuel); renderDuel();
+    if(dDuel.finished)return duelFinish();
+    const actor=dDuel.order[dDuel.idx];
+    if(actor.side==='p') showKit(actor);
+    else setTimeout(()=>{ try{ Duel.useSkill(dDuel,Duel.aiPick(dDuel)); renderDuel(); if(dDuel.finished)return duelFinish(); setTimeout(duelTurn,520); }catch(e){ autoFinishDuel(); } },520);
+  }catch(e){ autoFinishDuel(); }
+}
+// 프리즈 방지: 예외 발생 또는 "자동진행" 클릭 시 남은 합을 즉시 자동 판정하고 종료.
+function autoFinishDuel(){
+  try{ let g=0; while(dDuel && !dDuel.finished && g++<600){ Duel.beginTurn(dDuel); if(dDuel.finished)break; Duel.useSkill(dDuel,Duel.aiPick(dDuel)); } }catch(e){}
+  if(dDuel && !dDuel.finished){ dDuel.finished=true; dDuel.winner=(dDuel.p.hp>=dDuel.e.hp)?'p':'e'; dDuel.result={winner:dDuel.winner,rounds:dDuel.round,killed:false,grade:'판정승'}; }
+  if(dDuel) duelFinish();
 }
 function duelFinish(){
   hideKit(); renderDuel();
   const r=dDuel.result, pWon=r.winner==='p', pSol=dReq._pSol, eSol=dReq._eSol;
   const winner=pWon?pSol:eSol, loser=pWon?eSol:pSol, killed=r.killed;
   const box=$('duelResult'); box.style.display='block';
-  box.innerHTML=`<div class="drwin" style="color:${pWon?'#7fe89a':'#e06868'}">${pWon?'勝 · 승리':'敗 · 패배'}</div>
+  box.innerHTML=`<div class="drwin" style="color:${pWon?'#7fe89a':'#e06868'}">${pWon?'승 리':'패 배'}</div>
     <div class="drsub">${r.grade} · ${dDuel.round}R · ${killed?(pWon?'적장 격파! 부대 와해':'아군 장수 전사'):(pWon?'적장 후퇴시킴':'아군 후퇴')}</div>
     <button class="btn" id="duelCloseBtn">확 인</button>`;
   $('duelCloseBtn').onclick=()=>{
     RTS.applyDuelResult(world,winner,loser,killed);
     $('duelOv').classList.remove('show'); duelOpen=false; dDuel=null;
-    if(pWon){AU.win(); screenFx({flash:[232,200,115],fdur:0.3,text:winner.genName+' 一騎討 勝!',sub:killed?'적장을 벤다':'적장을 물리쳤다',color:'#ffe07a',tdur:1.5});}
-    else{AU.boom(); screenFx({flash:[200,60,50],fdur:0.35,shake:10,text:loser.genName+' 敗北',sub:killed?'장수를 잃었다':'후퇴한다',color:'#ff8a6a',tdur:1.5});}
+    if(pWon){AU.win(); screenFx({flash:[232,200,115],fdur:0.3,text:winner.genName+' 일기토 승리!',sub:killed?'적장을 벤다':'적장을 물리쳤다',color:'#ffe07a',tdur:1.5});}
+    else{AU.boom(); screenFx({flash:[200,60,50],fdur:0.35,shake:10,text:loser.genName+' 패배',sub:killed?'장수를 잃었다':'후퇴한다',color:'#ff8a6a',tdur:1.5});}
     render();
   };
 }
