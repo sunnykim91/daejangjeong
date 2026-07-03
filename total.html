@@ -511,48 +511,70 @@ const TPAL={
   '습지':['#4d5a48','#5a6a52','#43503c'],
 };
 function zoneAt(x,y){ for(const z of world.terrain){ if(z.shape==='rect'){ if(x>=z.x0&&x<=z.x1&&y>=z.y0&&y<=z.y1)return z.type; } else if((x-z.x)**2+(y-z.y)**2<=z.r*z.r)return z.type; } return '평야'; }
-// ── 양피지 고지도(古地圖) 톤 렌더 — 지형별 카토그래픽 기호 ──
-const ZONE_STYLE={
-  '숲':   {fill:'rgba(122,142,92,0.62)',  edge:'rgba(122,142,92,0)'},
-  '산악': {fill:'rgba(178,158,120,0.74)',  edge:'rgba(178,158,120,0)'},
-  '언덕': {fill:'rgba(208,186,130,0.52)',  edge:'rgba(208,186,130,0)'},
-  '물':   {fill:'rgba(150,188,206,0.85)',  edge:'rgba(150,188,206,0)'},
-  '늪':   {fill:'rgba(120,136,86,0.60)',   edge:'rgba(120,136,86,0)'},
-  '습지': {fill:'rgba(140,150,108,0.55)',  edge:'rgba(140,150,108,0)'},
-};
+// ── 양피지 고지도 톤 렌더 (회화적 — 산맥/수풀/강 그림) ──
 const inZone=(z,x,y)=> z.shape==='rect' ? (x>=z.x0&&x<=z.x1&&y>=z.y0&&y<=z.y1) : ((x-z.x)**2+(y-z.y)**2<=z.r*z.r);
 const zoneBox=(z)=> z.shape==='rect' ? [z.x0,z.y0,z.x1,z.y1] : [z.x-z.r,z.y-z.r,z.x+z.r,z.y+z.r];
-function drawZone(c,z){
-  const S=ZONE_STYLE[z.type]; if(!S)return;
-  if(z.shape==='rect'){ c.fillStyle=S.fill; c.fillRect(z.x0,z.y0,z.x1-z.x0,z.y1-z.y0); }
-  else { const g=c.createRadialGradient(z.x,z.y,Math.max(1,z.r*0.62),z.x,z.y,z.r);
-    g.addColorStop(0,S.fill); g.addColorStop(0.82,S.fill); g.addColorStop(1,S.edge);
+function fillRegion(c,z,fill,edge){
+  if(z.shape==='rect'){ c.fillStyle=fill; c.fillRect(z.x0,z.y0,z.x1-z.x0,z.y1-z.y0); }
+  else { const g=c.createRadialGradient(z.x,z.y,z.r*0.5,z.x,z.y,z.r);
+    g.addColorStop(0,fill); g.addColorStop(0.78,fill); g.addColorStop(1,edge);
     c.fillStyle=g; c.beginPath(); c.arc(z.x,z.y,z.r,0,7); c.fill(); }
-  // 지형 기호 산포(결정적)
-  const [bx0,by0,bx1,by1]=zoneBox(z), step= z.type==='산악'?26:(z.type==='물'?20:22); let i=0;
-  for(let y=by0;y<by1;y+=step)for(let x=bx0;x<bx1;x+=step){ i++;
-    const jx=x+(hash2(i,3)-0.5)*step*0.8, jy=y+(hash2(i,17)-0.5)*step*0.8; if(!inZone(z,jx,jy))continue;
-    const n=hash2((jx*2)|0,(jy*2)|0);
-    if(z.type==='숲'){ if(n<0.55){ c.fillStyle='rgba(70,92,52,0.55)'; c.beginPath(); c.arc(jx,jy,2+n*2.2,0,7); c.fill(); } }
-    else if(z.type==='산악'){ c.strokeStyle='rgba(96,74,46,0.72)'; c.lineWidth=1.6; const s=4+n*4;
-      c.beginPath(); c.moveTo(jx-s,jy+s*0.6); c.lineTo(jx,jy-s*0.8); c.lineTo(jx+s,jy+s*0.6); c.stroke(); }
-    else if(z.type==='언덕'){ if(n<0.4){ c.strokeStyle='rgba(150,122,70,0.42)'; c.lineWidth=1.2; c.beginPath(); c.arc(jx,jy,4+n*4,0.9,2.3); c.stroke(); } }
-    else if(z.type==='물'){ if(n<0.6){ c.strokeStyle='rgba(88,128,150,0.5)'; c.lineWidth=1.2; c.beginPath(); c.moveTo(jx-5,jy); c.quadraticCurveTo(jx,jy-3,jx+5,jy); c.stroke(); } }
-    else if(z.type==='늪'||z.type==='습지'){ if(n<0.5){ c.strokeStyle='rgba(82,94,56,0.6)'; c.lineWidth=1.3;
-      c.beginPath(); c.moveTo(jx,jy+3); c.lineTo(jx,jy-4); c.moveTo(jx-2,jy-1); c.lineTo(jx,jy-4); c.lineTo(jx+2,jy-1); c.stroke(); } }
-  }
+}
+function zonePts(z,step){ const [x0,y0,x1,y1]=zoneBox(z), out=[]; let i=90;
+  for(let y=y0;y<y1;y+=step)for(let x=x0;x<x1;x+=step){ i++;
+    const jx=x+(hash2(i,3)-0.5)*step*0.55, jy=y+(hash2(i,9)-0.5)*step*0.55;
+    if(inZone(z,jx,jy)) out.push({x:jx,y:jy,n:hash2(i,13)}); }
+  out.sort((a,b)=>a.y-b.y); return out;   // 뒤(위)→앞(아래) 순서로 겹쳐 그림
+}
+function mtnPeak(c,x,y,n){ const w=13+n*10, h=13+n*11;
+  c.beginPath(); c.moveTo(x-w,y+h*0.45); c.lineTo(x,y-h); c.lineTo(x+w,y+h*0.45); c.closePath(); c.fillStyle='#d0bd90'; c.fill();          // 밝은 면
+  c.beginPath(); c.moveTo(x,y-h); c.lineTo(x+w,y+h*0.45); c.lineTo(x,y+h*0.45); c.closePath(); c.fillStyle='#95794c'; c.fill();           // 그늘 면
+  c.beginPath(); c.moveTo(x-w*0.34,y-h*0.28); c.lineTo(x,y-h); c.lineTo(x+w*0.26,y-h*0.30); c.closePath(); c.fillStyle='#f2ecd8'; c.fill();// 설봉
+  c.strokeStyle='#6b5433'; c.lineWidth=1.3; c.beginPath(); c.moveTo(x-w,y+h*0.45); c.lineTo(x,y-h); c.lineTo(x+w,y+h*0.45); c.stroke();
+}
+function treeClump(c,x,y,n){ const r=6+n*4;
+  c.fillStyle='#6f8a4d'; c.beginPath(); c.arc(x,y,r,0,7); c.fill();
+  c.fillStyle='#93ab66'; c.beginPath(); c.arc(x-r*0.3,y-r*0.35,r*0.68,0,7); c.fill();
+  c.strokeStyle='rgba(66,86,44,0.5)'; c.lineWidth=1; c.beginPath(); c.arc(x,y,r,0,7); c.stroke();
+  c.strokeStyle='#5a4326'; c.lineWidth=1.4; c.beginPath(); c.moveTo(x,y+r*0.7); c.lineTo(x,y+r+3); c.stroke();
+}
+function reedTuft(c,x,y){ c.strokeStyle='rgba(74,90,52,0.72)'; c.lineWidth=1.3;
+  c.beginPath(); c.moveTo(x,y+4); c.lineTo(x,y-5); c.moveTo(x-3,y-1); c.lineTo(x,y-5); c.lineTo(x+3,y-1); c.stroke(); }
+function hillArc(c,x,y,n){ c.strokeStyle='rgba(148,120,68,0.5)'; c.lineWidth=1.4;
+  c.beginPath(); c.arc(x,y+3,6+n*6,3.5,6.05); c.stroke(); }
+function drawWaterRect(c,z){
+  const x0=z.x0,x1=z.x1,y0=z.y0,y1=z.y1,w=x1-x0;
+  const g=c.createLinearGradient(x0,0,x1,0);
+  g.addColorStop(0,'rgba(128,166,186,0.55)'); g.addColorStop(0.5,'rgba(160,198,216,0.94)'); g.addColorStop(1,'rgba(128,166,186,0.55)');
+  c.fillStyle=g; c.fillRect(x0,y0,w,y1-y0);
+  c.strokeStyle='rgba(96,134,154,0.42)'; c.lineWidth=1.3;
+  for(let y=y0+22;y<y1;y+=42){ c.beginPath(); let s=true; for(let x=x0+8;x<x1-8;x+=12){ const yy=y+Math.sin(x*0.09+y*0.05)*2.6; if(s){c.moveTo(x,yy);s=false;}else c.lineTo(x,yy);} c.stroke(); }
+  c.strokeStyle='rgba(108,86,46,0.3)'; c.lineWidth=1.6; c.beginPath(); c.moveTo(x0,y0); c.lineTo(x0,y1); c.moveTo(x1,y0); c.lineTo(x1,y1); c.stroke();
+}
+function drawZone(c,z){
+  if(z.type==='물'){ if(z.shape==='rect') drawWaterRect(c,z); else fillRegion(c,z,'rgba(160,198,216,0.9)','rgba(160,198,216,0)'); return; }
+  const cfg={
+    '숲':  {fill:'rgba(150,172,110,0.5)', edge:'rgba(150,172,110,0)',step:28,m:(c,x,y,n)=>treeClump(c,x,y,n),  keep:0.78},
+    '산악':{fill:'rgba(202,184,142,0.5)', edge:'rgba(202,184,142,0)',step:24,m:(c,x,y,n)=>mtnPeak(c,x,y,n),   keep:0.82},
+    '언덕':{fill:'rgba(216,196,140,0.48)',edge:'rgba(216,196,140,0)',step:34,m:(c,x,y,n)=>hillArc(c,x,y,n),   keep:0.5},
+    '늪':  {fill:'rgba(142,158,104,0.5)', edge:'rgba(142,158,104,0)',step:26,m:(c,x,y)=>reedTuft(c,x,y),      keep:0.55},
+    '습지':{fill:'rgba(152,168,122,0.46)',edge:'rgba(152,168,122,0)',step:26,m:(c,x,y)=>reedTuft(c,x,y),      keep:0.5},
+  }[z.type];
+  if(!cfg)return;
+  fillRegion(c,z,cfg.fill,cfg.edge);
+  for(const p of zonePts(z,cfg.step)) if(p.n<cfg.keep) cfg.m(c,p.x,p.y,p.n);
 }
 function renderMapBg(){
   bgCv.width=MAPW; bgCv.height=MAPH; const c=bgx; c.imageSmoothingEnabled=true;
-  c.fillStyle='#e7d8b2'; c.fillRect(0,0,MAPW,MAPH);                         // 양피지 베이스
-  for(let i=0;i<2800;i++){ const x=hash2(i,7)*MAPW, y=hash2(i,31)*MAPH, r=2+hash2(i,53)*7;   // 종이 얼룩
-    c.fillStyle= hash2(i,71)<0.5?'rgba(120,96,52,0.045)':'rgba(255,250,235,0.05)'; c.beginPath(); c.arc(x,y,r,0,7); c.fill(); }
-  c.strokeStyle='rgba(120,96,52,0.10)'; c.lineWidth=1;                      // 옅은 경위선 격자
+  c.fillStyle='#e8dab0'; c.fillRect(0,0,MAPW,MAPH);                         // 양피지 베이스
+  for(let i=0;i<2400;i++){ const x=hash2(i,7)*MAPW, y=hash2(i,31)*MAPH, r=3+hash2(i,53)*9;   // 종이 결/얼룩
+    c.fillStyle= hash2(i,71)<0.5?'rgba(122,96,50,0.038)':'rgba(255,250,232,0.05)'; c.beginPath(); c.arc(x,y,r,0,7); c.fill(); }
+  c.strokeStyle='rgba(120,96,52,0.075)'; c.lineWidth=1;                     // 옅은 경위선
   for(let x=120;x<MAPW;x+=120){ c.beginPath(); c.moveTo(x,0); c.lineTo(x,MAPH); c.stroke(); }
   for(let y=120;y<MAPH;y+=120){ c.beginPath(); c.moveTo(0,y); c.lineTo(MAPW,y); c.stroke(); }
-  for(const z of world.terrain) drawZone(c,z);                             // 지형 카토그래픽
-  const vg=c.createRadialGradient(MAPW/2,MAPH/2,Math.min(MAPW,MAPH)*0.34,MAPW/2,MAPH/2,Math.max(MAPW,MAPH)*0.62);
-  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(92,66,32,0.30)');  // 가장자리 갈변
+  for(const z of world.terrain) drawZone(c,z);
+  const vg=c.createRadialGradient(MAPW/2,MAPH/2,Math.min(MAPW,MAPH)*0.32,MAPW/2,MAPH/2,Math.max(MAPW,MAPH)*0.6);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(92,66,32,0.34)');
   c.fillStyle=vg; c.fillRect(0,0,MAPW,MAPH);
 }
 
@@ -692,30 +714,52 @@ function drawGarrison(c,L,T,W,H,owner){
   if(gens.length>span){ ctx.font='bold 11px "Courier New",monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillText('+'+(gens.length-span),L+W/2+span*15+1,gy-5); ctx.fillStyle='#e8c873'; ctx.fillText('+'+(gens.length-span),L+W/2+span*15,gy-6); }
 }
+// 고지도 요새 아이콘(성) — owner별 캐시
+const castleIconCache={};
+function makeCastleIcon(owner,capital){
+  const key=owner+(capital?'C':''); if(castleIconCache[key])return castleIconCache[key];
+  const W=94,H=80, cv=document.createElement('canvas'); cv.width=W;cv.height=H; const g=cv.getContext('2d');
+  const stone='#cdb98c', stoneL='#e4d3a6', stoneD='#9c855a', line='#6b5433';
+  const flag= capital?'#d9b24a':(owner==='player'?'#3f6fb0':(owner==='enemy'?'#b33b3b':'#8a8a76'));
+  const roof= owner==='player'?'#3a557c':(owner==='enemy'?'#7c2e2e':'#5a5044');
+  const box=(x,y,w,h,col)=>{g.fillStyle=col;g.fillRect(x,y,w,h);};
+  const out=(x,y,w,h)=>{g.strokeStyle=line;g.lineWidth=1.5;g.strokeRect(x+0.75,y+0.75,w-1.5,h-1.5);};
+  const crenel=(x0,x1,y)=>{g.fillStyle=stone; for(let x=x0;x<x1-3;x+=8)g.fillRect(x,y-4,5,4);};
+  g.fillStyle='rgba(80,58,28,0.28)'; g.beginPath(); g.ellipse(W/2,H-9,W*0.40,7,0,0,7); g.fill();        // 그림자
+  // 성벽(커튼월)
+  box(20,46,54,26,stone); box(20,46,54,3,stoneL); box(20,68,54,4,stoneD); crenel(20,74,46); out(20,46,54,26);
+  g.fillStyle='#3a2a16'; g.beginPath(); g.moveTo(41,72); g.lineTo(41,60); g.arc(47,60,6,Math.PI,0,false); g.lineTo(53,72); g.closePath(); g.fill();  // 성문
+  // 좌우 각루
+  for(const tx of [10,68]){ box(tx,28,16,44,stone); box(tx,28,16,3,stoneL); box(tx,28,3,44,stoneL); box(tx+13,28,3,44,stoneD); crenel(tx,tx+16,30); out(tx,28,16,44); box(tx-1,24,18,4,roof); }
+  // 중앙 천수각(keep)
+  box(35,16,24,56,stone); box(35,16,24,3,stoneL); box(35,16,3,56,stoneL); box(56,16,3,56,stoneD); crenel(35,59,18); out(35,16,24,56); box(43,32,8,12,'#3a2a16');
+  // 깃발
+  g.strokeStyle=line; g.lineWidth=1.6; g.beginPath(); g.moveTo(47,16); g.lineTo(47,2); g.stroke();
+  g.fillStyle=flag; g.beginPath(); g.moveTo(47,3); g.lineTo(63,7); g.lineTo(47,12); g.closePath(); g.fill();
+  return castleIconCache[key]=cv;
+}
 function drawCastle(c){
   if(!c.everSeen)return;                          // 미탐색 적 성은 숨김
-  const sx=c.x-cam.x, sy=c.y-cam.y, W=CENC.w, H=CENC.h;
-  if(sx<-W||sy<-H||sx>VW+W||sy>VH+H)return;
+  const sx=c.x-cam.x, sy=c.y-cam.y;
+  if(sx<-120||sy<-120||sx>VW+120||sy>VH+120)return;
   const owner = c.owner==='player' ? 'player' : (c.seenOwner||c.owner);
   const known = owner==='player'||visAt(c.x,c.y);
-  const L=sx-W/2,T=sy-H/2,B=sy+H/2;
-  ctx.fillStyle='rgba(66,54,34,0.42)'; ctx.fillRect(L|0,T|0,W,H);     // 진영 내부 흙바닥
-  ctx.drawImage(makeWall(owner),L|0,T|0);                            // 성벽(여장·각루·성문 문루)
-  if(known) drawGarrison(c,L,T,W,H,owner);                           // 주둔 병사(성벽 안, 열 지어) + 지휘 장수
-  // 병력/민심 바 (상단)
-  if(known){ const bw=64,bx=(sx-bw/2)|0,by=(T-32)|0, r=Math.max(0,Math.min(1,c.troops/c.troopMax));
-    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(bx-1,by-1,bw+2,6);
+  const ic=makeCastleIcon(owner, c.prod>=130), iw=ic.width, ih=ic.height;
+  ctx.drawImage(ic,(sx-iw/2)|0,(sy-ih*0.6)|0);                       // 요새 아이콘
+  // 병력/민심 바 (아이콘 위)
+  if(known){ const bw=62,bx=(sx-bw/2)|0,by=(sy-ih*0.6-16)|0, r=Math.max(0,Math.min(1,c.troops/c.troopMax));
+    ctx.fillStyle='rgba(30,20,8,.72)'; ctx.fillRect(bx-2,by-2,bw+4,11);
     ctx.fillStyle=owner==='player'?'#5a94e0':(owner==='enemy'?'#df6060':'#c9bd98'); ctx.fillRect(bx,by,(bw*r)|0,4);
-    const mr=Math.max(0,Math.min(1,c.min/100)), my2=by+6;
-    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(bx-1,my2-1,bw+2,4);
-    ctx.fillStyle=c.min>=60?'#d4b24e':(c.min>=35?'#c9863a':'#b0503a'); ctx.fillRect(bx,my2,(bw*mr)|0,2);
+    const mr=Math.max(0,Math.min(1,c.min/100));
+    ctx.fillStyle=c.min>=60?'#d4b24e':(c.min>=35?'#c9863a':'#b0503a'); ctx.fillRect(bx,by+5,(bw*mr)|0,3);
     ctx.font='9px "Courier New",monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom';
-    ctx.fillStyle='rgba(0,0,0,.75)'; ctx.fillText(Math.floor(c.troops),sx+1,by-1); ctx.fillStyle='#e8e0d0'; ctx.fillText(Math.floor(c.troops),sx,by-2);
-    ctx.textBaseline='middle'; }
-  // 이름 (하단)
-  ctx.font='bold 13px "Courier New",monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
-  ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillText(c.name,sx+1,B+5);
-  ctx.fillStyle=owner==='player'?'#bcd8ff':(owner==='enemy'?'#ffc4c4':'#e8e0d0'); ctx.fillText(c.name,sx,B+4);
+    ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillText(Math.floor(c.troops),sx,by-2); }
+  // 이름 (아이콘 아래, 양피지 라벨)
+  const ny=(sy+ih*0.44)|0, nw=c.name.length*14+10;
+  ctx.font='bold 13px "Batang",serif'; ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle='rgba(245,236,210,0.88)'; ctx.fillRect((sx-nw/2)|0,ny-1,nw,18);
+  ctx.strokeStyle='rgba(110,84,52,0.5)'; ctx.lineWidth=1; ctx.strokeRect((sx-nw/2)|0+0.5,ny-0.5,nw,18);
+  ctx.fillStyle=owner==='player'?'#274a82':(owner==='enemy'?'#872b2b':'#4a3a1a'); ctx.fillText(c.name,sx,ny+2);
   ctx.textBaseline='middle';
 }
 // ── 일기토 시네마틱 컷씬 ──────────────────────────────────
