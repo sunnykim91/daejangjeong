@@ -63,15 +63,26 @@
       might: def.might, command: def.command, intellect: def.intellect, agility: def.agility,
       hp, maxHp: hp, alive: true, kit: kit.skills, passive: kit.passive, cds: {}, buffs: [], firstAtk: true };
   }
-  function createDuel(pDef, eDef, opts) {
+  // 국가 시너지(RQ-V4-008 상품성): 같은 진영 2명↑ → 공격 버프(2명+5%/3명+10%/4명+15%).
+  function applySynergy(heroes) {
+    const cnt = {}; for (const h of heroes) cnt[h.faction] = (cnt[h.faction] || 0) + 1;
+    for (const h of heroes) { const n = cnt[h.faction] || 1; if (n >= 2) { h.buffs.push({ type: 'atk', amt: 0.05 * (n - 1), turns: 9999 }); h.synergy = n; } }
+  }
+  // 1:1 또는 N:N(최대 4:4). pDefs/eDefs는 def 또는 def 배열.
+  function createDuel(pDefs, eDefs, opts) {
     opts = opts || {};
-    const p = makeHero(pDef, 'p'), e = makeHero(eDef, 'e');
-    const order = (p.agility >= e.agility) ? [p, e] : [e, p];
-    return { p, e, order, idx: 0, round: 1, turn: 0, maxTurns: opts.maxTurns || 60,
+    const P = (Array.isArray(pDefs) ? pDefs : [pDefs]).filter(Boolean);
+    const E = (Array.isArray(eDefs) ? eDefs : [eDefs]).filter(Boolean);
+    const teams = { p: P.map((d) => makeHero(d, 'p')), e: E.map((d) => makeHero(d, 'e')) };
+    applySynergy(teams.p); applySynergy(teams.e);
+    const order = [...teams.p, ...teams.e].sort((a, b) => (b.agility - a.agility) || 0);
+    return { teams, p: teams.p[0], e: teams.e[0], order, idx: 0, round: 1, turn: 0,
+      maxTurns: opts.maxTurns || (P.length + E.length) * 30,
       log: [], finished: false, winner: null, morale: { p: 50, e: 50 }, rng: opts.rng || Math.random };
   }
-
-  const other = (duel, h) => (h === duel.p ? duel.e : duel.p);
+  const foesOf = (duel, h) => duel.teams[h.side === 'p' ? 'e' : 'p'].filter((x) => x.alive);
+  function lowestHpEnemy(duel, h) { const f = foesOf(duel, h); return f.length ? f.reduce((a, b) => (b.hp < a.hp ? b : a), f[0]) : null; }
+  function teamHp(duel, s) { const t = duel.teams[s]; return t.reduce((a, h) => a + Math.max(0, h.hp), 0) / t.reduce((a, h) => a + h.maxHp, 0); }
   function skillReady(actor, id) { return !(actor.cds[id] > 0); }
 
   function applyDmg(duel, target, dmg) {
@@ -116,7 +127,8 @@
   function useSkill(duel, id) {
     if (duel.finished) return;
     const actor = duel.order[duel.idx]; if (!actor.alive) return advance(duel);
-    const target = other(duel, actor), sk = SKILLS[id];
+    const target = lowestHpEnemy(duel, actor); if (!target) { checkEnd(duel); return; }
+    const sk = SKILLS[id];
     if (!sk || !skillReady(actor, id)) id = 'strike';
     const s = SKILLS[id];
     let msg = `${actor.name} · ${s.name}`;
@@ -137,11 +149,17 @@
     if (!duel.finished) advance(duel);
   }
 
-  function advance(duel) { duel.idx = (duel.idx + 1) % duel.order.length; duel.turn++; if (duel.idx === 0) duel.round++; }
+  function advance(duel) {   // 다음 생존 장수로(사망자 건너뜀)
+    for (let i = 0; i < duel.order.length; i++) {
+      duel.idx = (duel.idx + 1) % duel.order.length; duel.turn++; if (duel.idx === 0) duel.round++;
+      if (duel.order[duel.idx].alive) return;
+    }
+  }
 
   // AI: 마무리 가능하면 최대 피해, 위급하면 회복/방어, 아니면 준비된 강스킬.
   function aiPick(duel) {
-    const actor = duel.order[duel.idx], target = other(duel, actor);
+    const actor = duel.order[duel.idx], target = lowestHpEnemy(duel, actor);
+    if (!target) return 'strike';
     const ready = actor.kit.filter((id) => skillReady(actor, id));
     // 처치 가능?
     let kill = null, kd = 0; for (const id of ready) { const e = estimate(duel, actor, target, id); if (e >= target.hp && e > kd) { kd = e; kill = id; } }
@@ -155,18 +173,15 @@
 
   function checkEnd(duel) {
     if (duel.finished) return;
-    if (!duel.p.alive || !duel.e.alive) {
-      const winner = !duel.p.alive && duel.e.alive ? 'e' : (!duel.e.alive && duel.p.alive ? 'p' : (duel.p.hp >= duel.e.hp ? 'p' : 'e'));
-      finish(duel, winner, 'kill');
-    } else if (duel.turn >= duel.maxTurns) {
-      finish(duel, (duel.p.hp / duel.p.maxHp >= duel.e.hp / duel.e.maxHp) ? 'p' : 'e', 'timeout');
-    }
+    const pA = duel.teams.p.some((h) => h.alive), eA = duel.teams.e.some((h) => h.alive);
+    if (!pA || !eA) finish(duel, !pA && eA ? 'e' : (!eA && pA ? 'p' : (teamHp(duel, 'p') >= teamHp(duel, 'e') ? 'p' : 'e')), 'kill');
+    else if (duel.turn >= duel.maxTurns) finish(duel, teamHp(duel, 'p') >= teamHp(duel, 'e') ? 'p' : 'e', 'timeout');
   }
   function finish(duel, winner, reason) {
     duel.finished = true; duel.winner = winner; duel.reason = reason;
-    const w = duel[winner], l = other(duel, w);
-    duel.result = { winner, reason, rounds: duel.round, killed: !l.alive,
-      grade: (l.hp <= 0 ? (w.hp / w.maxHp > 0.6 ? '대승' : '승') : '판정승') };
+    const loserSide = winner === 'p' ? 'e' : 'p', anyAlive = duel.teams[loserSide].some((h) => h.alive);
+    duel.result = { winner, reason, rounds: duel.round, killed: !anyAlive,
+      grade: !anyAlive ? (teamHp(duel, winner) > 0.6 ? '대승' : '승') : '판정승' };
   }
 
   // 헤드리스 자동 판정(전쟁 auto-resolve·테스트용): 끝까지 자동 진행.
@@ -174,7 +189,7 @@
     const duel = createDuel(pDef, eDef, { rng: rng || Math.random });
     let guard = 0;
     while (!duel.finished && guard++ < 500) { beginTurn(duel); if (duel.finished) break; useSkill(duel, aiPick(duel)); }
-    if (!duel.finished) finish(duel, (duel.p.hp >= duel.e.hp) ? 'p' : 'e', 'cap');
+    if (!duel.finished) finish(duel, teamHp(duel, 'p') >= teamHp(duel, 'e') ? 'p' : 'e', 'cap');
     return duel;
   }
 
