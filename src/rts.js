@@ -237,12 +237,16 @@
   function detectDuels(world, dt, rng) {
     if (world.duelRequest || world.duels.some((d) => !d.ended)) return;
     const gens = [];
-    for (const s of world.soldiers) { if (s.gen && s.alive && !s.gone && !s.flee) { if (s._duelCd > 0) s._duelCd -= dt; gens.push(s); } }
+    for (const s of world.soldiers) { if (s.gen && s.alive && !s.gone && !s.flee) {
+      if (s._gcd > 0) s._gcd -= dt;                                              // 결투 직후 짧은 전역 쿨(연속 방지)
+      if (s._pairCd) for (const k in s._pairCd) if (s._pairCd[k] > 0) s._pairCd[k] -= dt;
+      gens.push(s); } }
     for (let i = 0; i < gens.length; i++) for (let j = i + 1; j < gens.length; j++) {
       const a = gens[i], b = gens[j];
-      if (a.team === b.team || a.duel || b.duel || a._duelCd > 0 || b._duelCd > 0) continue;
+      if (a.team === b.team || a._gcd > 0 || b._gcd > 0) continue;
+      if ((a._pairCd && a._pairCd[b.army] > 0)) continue;                        // '같은 상대'와만 쿨다운(새 장수는 바로 가능)
       if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 > DUEL_R * DUEL_R) continue;
-      if (rng() < 1.6 * dt) { world.duelRequest = { a, b }; if (world.autoDuel) resolveDuelAuto(world, rng); return; }   // UI가 처리 / 헤드리스는 자동 판정
+      if (rng() < 2.4 * dt) { world.duelRequest = { a, b }; if (world.autoDuel) resolveDuelAuto(world, rng); return; }   // UI가 처리 / 헤드리스는 자동 판정
     }
   }
   // 헤드리스(테스트·AI 시뮬)용 자동 일기토 판정 — engine 턴제 1:1을 즉시 돌려 결과 반영.
@@ -264,8 +268,8 @@
       la.morale = Math.max(0, la.morale - 20);                    // 패배(생존): 사기 급락 → 후퇴 유발
       la.confused = true; la.confuseT = CONFUSE_DUR * 0.6;        // 혼란(돌파당함)
     }
-    if (winner.alive) winner._duelCd = DUEL_CD;
-    if (loser.alive) loser._duelCd = DUEL_CD;
+    if (winner.alive) { winner._gcd = 2.5; (winner._pairCd = winner._pairCd || {})[loser.army] = DUEL_CD; }   // 같은 상대와 DUEL_CD초 재결투 금지
+    if (loser.alive) { loser._gcd = 2.5; (loser._pairCd = loser._pairCd || {})[winner.army] = DUEL_CD; }
     world.duelRequest = null;
   }
   // 일시중지 중 일기토만 진행(삼국지식 결투 컷씬용). 시간은 흐르되 나머지 시뮬 정지.
